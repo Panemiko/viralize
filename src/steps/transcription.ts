@@ -2,7 +2,8 @@ import { $, fs } from "zx";
 import { generateAssKaraoke } from "../utils/ass-generator.ts";
 import logger from "../utils/logger.ts";
 import path from "node:path";
-import { PROJECT_ROOT, INTERNAL_TEMP_DIR } from "../utils/paths.ts";
+import { PROJECT_ROOT, INTERNAL_TEMP_DIR, ensureTempDir } from "../utils/paths.ts";
+import type { WhisperData, WhisperSegment, WhisperWord } from "../types.ts";
 
 /**
  * Generates subtitles for a video file using Whisper.
@@ -12,11 +13,11 @@ import { PROJECT_ROOT, INTERNAL_TEMP_DIR } from "../utils/paths.ts";
  */
 export async function generateSubtitles(
   videoFile: string,
-  multibar?: any, // I'll use any for multibar for now or @types/cli-progress if I have it
+  multibar?: any,
 ) {
-  logger.info("Extracting audio for transcription...");
+  ensureTempDir();
   const bar = multibar?.create(100, 0, {
-    task: "Transcription: extracting audio",
+    task: "Transcription",
   });
 
   const audioTemp = path.resolve(INTERNAL_TEMP_DIR, "audio_cut.wav");
@@ -25,7 +26,7 @@ export async function generateSubtitles(
 
   // Extract mono audio for Whisper
   await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -vn -acodec pcm_s16le -ar 16000 -ac 1 ${audioTemp}`;
-  bar?.update(10, { task: "Transcription: audio extracted" });
+  bar?.update(10);
 
   const venvWhisper = path.resolve(PROJECT_ROOT, ".venv/bin/whisper");
   const whisperCmd = fs.existsSync(venvWhisper) ? venvWhisper : "whisper";
@@ -38,27 +39,23 @@ export async function generateSubtitles(
     "--language",
     "Portuguese",
     "--output_dir",
-    "tmp",
+    INTERNAL_TEMP_DIR,
     "--output_format",
     "json",
     "--word_timestamps",
     "True",
-    "--max_words_per_line",
-    "2",
     "--max_line_count",
     "1",
     "--max_line_width",
     "20",
   ];
 
-  bar?.update(20, { task: "Transcription: transcribing with Whisper" });
+  bar?.update(20);
   await performTranscription(whisperCmd, whisperArgs);
-  bar?.update(80, { task: "Transcription: whisper complete" });
+  bar?.update(80);
 
   if (fs.existsSync(jsonFile)) {
-    logger.info("Generating Karaoke ASS subtitles...");
     const whisperData = JSON.parse(await fs.readFile(jsonFile, "utf-8"));
-
     processWhisperData(whisperData);
 
     await generateAssKaraoke(whisperData, assFile, {
@@ -70,8 +67,7 @@ export async function generateSubtitles(
     });
   }
 
-  bar?.update(100, { task: "Transcription: complete" });
-  logger.info("Karaoke subtitles generated successfully.");
+  bar?.update(100);
   return assFile;
 }
 
@@ -80,10 +76,9 @@ export async function generateSubtitles(
  */
 async function performTranscription(whisperCmd: string, whisperArgs: string[]) {
   try {
-    logger.info("Transcribing with Whisper (attempting GPU/CUDA)...");
     await $`${whisperCmd} ${whisperArgs} --device cuda`;
   } catch (err) {
-    logger.warn({ err }, "GPU transcription failed, falling back to CPU...");
+    logger.warn("GPU transcription failed, falling back to CPU...");
     await $`${whisperCmd} ${whisperArgs} --device cpu`;
   }
 }
@@ -91,13 +86,13 @@ async function performTranscription(whisperCmd: string, whisperArgs: string[]) {
 /**
  * Processes whisper data (e.g., converting to uppercase).
  */
-function processWhisperData(whisperData: any) {
+function processWhisperData(whisperData: WhisperData) {
   if (!whisperData.segments) return;
 
-  whisperData.segments.forEach((seg: any) => {
+  whisperData.segments.forEach((seg: WhisperSegment) => {
     seg.text = seg.text.toUpperCase();
     if (seg.words) {
-      seg.words.forEach((w: any) => {
+      seg.words.forEach((w: WhisperWord) => {
         w.word = w.word.toUpperCase();
       });
     }

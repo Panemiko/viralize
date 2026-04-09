@@ -6,7 +6,7 @@ import type { GlobalContext } from "../types.ts";
 export default async function check({ $, chalk, logger }: GlobalContext) {
   logger.info("🔍 Checking system dependencies...");
 
-  const verify = async (cmd: string, label: string) => {
+  async function verify(cmd: string, label: string) {
     try {
       await $`which ${cmd}`.quiet();
       console.log(`  [${chalk.green("OK")}] ${label}`);
@@ -15,7 +15,7 @@ export default async function check({ $, chalk, logger }: GlobalContext) {
       console.log(`  [${chalk.red("ERROR")}] ${label} (not found)`);
       return false;
     }
-  };
+  }
 
   const results = [
     await verify("ffmpeg", "FFmpeg (Video Engine)"),
@@ -24,7 +24,7 @@ export default async function check({ $, chalk, logger }: GlobalContext) {
     await verify("python", "Python (AI Engine)"),
   ];
 
-  if (results.every((r) => r)) {
+  if (results.every(function (r) { return r; })) {
     console.log(chalk.bold.green("\n✨ System is ready for viralize!\n"));
   } else {
     console.log(

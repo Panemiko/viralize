@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import * as tf from "@tensorflow/tfjs-node";
 import * as faceapi_pkg from "@vladmandic/face-api";
+import { PROJECT_ROOT, INTERNAL_TEMP_DIR, ensureTempDir } from "./utils/paths.ts";
 
 const faceapi = faceapi_pkg as any;
 const modelPathRoot = "models";
@@ -25,21 +26,12 @@ async function detect(tensor: any) {
 }
 
 async function searchFaceOnFile(file: Buffer) {
-  console.log("FaceAPI single-process test");
-
   await faceapi.tf.setBackend("tensorflow");
   await faceapi.tf.enableProdMode();
   await faceapi.tf.ENV.set("DEBUG", false);
   await faceapi.tf.ready();
 
-  console.log(
-    `Version: TensorFlow/JS ${faceapi.tf?.version_core} FaceAPI ${
-      faceapi.version.faceapi
-    } Backend: ${faceapi.tf?.getBackend()}`,
-  );
-
-  console.log("Loading FaceAPI models");
-  const modelPath = path.join(import.meta.dirname, modelPathRoot);
+  const modelPath = path.join(PROJECT_ROOT, "src", modelPathRoot);
   await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath);
 
   optionsSSDMobileNet = new faceapi.SsdMobilenetv1Options({
@@ -49,16 +41,15 @@ async function searchFaceOnFile(file: Buffer) {
   const tensor = await image(file);
   const result = await detect(tensor);
 
-  console.log("Detected faces:", result.length);
-
   tensor.dispose();
 
   return result;
 }
 
 async function main() {
-  const framePath = path.resolve(import.meta.dirname, "../tmp/frame.png");
-  const faceJsonPath = path.resolve(import.meta.dirname, "../tmp/face.json");
+  ensureTempDir();
+  const framePath = path.resolve(INTERNAL_TEMP_DIR, "frame.png");
+  const faceJsonPath = path.resolve(INTERNAL_TEMP_DIR, "face.json");
 
   const data = await fs.readFile(framePath);
   const results = await searchFaceOnFile(data);

@@ -2,7 +2,7 @@ import { $ } from "zx";
 import logger from "../utils/logger.ts";
 import path from "node:path";
 import { ASSETS_DIR } from "../utils/paths.ts";
-import type { RenderParams } from "../types.ts";
+import type { RenderParams, CutResult } from "../types.ts";
 
 /**
  * Renders the final video with crops, filters, and subtitles.
@@ -17,23 +17,18 @@ export async function renderFinalVideo({
   videoOutput = "videos/",
   multibar,
 }: RenderParams) {
-  logger.info("Configuring FFmpeg filter chain...");
-
   const videoFilters = buildVideoFilters(cut, filterName, subtitleFile);
   const complexFilter = `
     [0:v]${videoFilters}[v_final];
     [0:a]arnndn=m=${path.resolve(ASSETS_DIR, "bd.rnnn")}:mix=0.9,loudnorm=I=-16:LRA=11:TP=-1.5 [a_final]
   `;
 
-  // Ensure output is relative to current working directory unless absolute
   const outputPath = path.resolve(process.cwd(), videoOutput, `${outputName}.mp4`);
-  // Ensure the output directory exists
   await $`mkdir -p ${path.dirname(outputPath)}`;
 
   try {
     const duration = await getVideoDuration(videoFile);
-    await performRendering(videoFile, complexFilter, filterName, outputPath, duration, multibar);
-    logger.info(`Video rendered successfully at ${outputPath}`);
+    await performRendering(videoFile, complexFilter, filterName, outputPath, duration, multibar as any);
   } catch (err) {
     logger.error({ err }, "Rendering failed");
     throw err;
@@ -53,7 +48,7 @@ async function getVideoDuration(videoFile: string) {
  * Builds the FFmpeg video filter string.
  */
 function buildVideoFilters(
-  cut: any,
+  cut: CutResult,
   filterName: string,
   subtitleFile: string | null,
 ) {
@@ -78,9 +73,9 @@ async function performRendering(
   duration: number,
   multibar: any,
 ) {
-  const bar = multibar?.create(100, 0, { task: `Rendering: ${filterName}` });
+  const bar = multibar?.create(100, 0, { task: `Rendering` });
 
-  const runFfmpeg = async (encoder: string) => {
+  async function runFfmpeg(encoder: string) {
     const args = [
       "-hide_banner",
       "-loglevel",
@@ -121,13 +116,13 @@ async function performRendering(
     }
 
     await process;
-  };
+  }
 
   try {
-    logger.info(`Rendering with LUT [${filterName}] using NVENC (GPU)...`);
+    logger.info(`Rendering with filter [${filterName}] using NVENC...`);
     await runFfmpeg("h264_nvenc");
   } catch (err) {
-    logger.warn({ err }, "GPU (NVENC) failed, switching to software encoding (CPU)...");
+    logger.warn("NVENC failed, switching to libx264...");
     await runFfmpeg("libx264");
   } finally {
     bar?.update(100);

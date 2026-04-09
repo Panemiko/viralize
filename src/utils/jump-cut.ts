@@ -2,12 +2,12 @@ export function getJumpCutFilter(silenceLogs: string, totalDuration: number) {
   const silenceStartRegex = /silence_start: ([\d.]+)/g;
   const silenceEndRegex = /silence_end: ([\d.]+)/g;
 
-  const starts = [...silenceLogs.matchAll(silenceStartRegex)].map((m) =>
-    parseFloat(m[1]!),
-  );
-  const ends = [...silenceLogs.matchAll(silenceEndRegex)].map((m) =>
-    parseFloat(m[1]!),
-  );
+  const starts = [...silenceLogs.matchAll(silenceStartRegex)].map(function (m) {
+    return parseFloat(m[1]!);
+  });
+  const ends = [...silenceLogs.matchAll(silenceEndRegex)].map(function (m) {
+    return parseFloat(m[1]!);
+  });
 
   const segments: { start: number; end: number }[] = [];
   let lastEnd = 0;
@@ -34,7 +34,7 @@ export function getJumpCutFilter(silenceLogs: string, totalDuration: number) {
   let audioParts = "";
   let concat = "";
 
-  segments.forEach((seg, i) => {
+  segments.forEach(function (seg, i) {
     videoParts += `[0:v]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[v${i}];`;
     audioParts += `[0:a]atrim=start=${seg.start}:end=${seg.end},asetpts=PTS-STARTPTS[a${i}];`;
     concat += `[v${i}][a${i}]`;

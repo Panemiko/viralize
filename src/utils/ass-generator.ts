@@ -1,4 +1,5 @@
 import { fs } from "zx";
+import type { WhisperData, WhisperSegment, WhisperWord, SubtitleStyle } from "../types.ts";
 
 const MAX_WORDS_PER_LINE = 2; // Maximum 2 words per screen for high dynamism
 
@@ -9,9 +10,9 @@ const MAX_WORDS_PER_LINE = 2; // Maximum 2 words per screen for high dynamism
  * @param {object} style Options for styling.
  */
 export async function generateAssKaraoke(
-  whisperJson: any,
+  whisperJson: WhisperData,
   outputPath: string,
-  style: any = {},
+  style: SubtitleStyle = {},
 ) {
   const header = buildAssHeader(style);
   const processedSegments = preProcessSegments(whisperJson.segments || []);
@@ -23,7 +24,7 @@ export async function generateAssKaraoke(
 /**
  * Builds the ASS file header.
  */
-function buildAssHeader(style: any) {
+function buildAssHeader(style: SubtitleStyle) {
   const {
     fontName = "Noto Sans",
     fontSize = 24,
@@ -52,7 +53,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 /**
  * Pre-processes segments by splitting long ones into smaller chunks.
  */
-function preProcessSegments(segments: any[]) {
+function preProcessSegments(segments: WhisperSegment[]) {
   const result = [];
 
   for (const segment of segments) {
@@ -69,15 +70,15 @@ function preProcessSegments(segments: any[]) {
 /**
  * Splits a list of words into smaller chunks for dynamic display.
  */
-function splitSegmentIntoChunks(words: any[]) {
+function splitSegmentIntoChunks(words: WhisperWord[]) {
   const chunks = [];
   for (let i = 0; i < words.length; i += MAX_WORDS_PER_LINE) {
     const chunkWords = words.slice(i, i + MAX_WORDS_PER_LINE);
     chunks.push({
-      start: chunkWords[0].start,
-      end: chunkWords[chunkWords.length - 1].end,
+      start: chunkWords[0]!.start,
+      end: chunkWords[chunkWords.length - 1]!.end,
       words: chunkWords,
-      text: chunkWords.map((w) => w.word).join(" "),
+      text: chunkWords.map(function (w) { return w.word; }).join(" "),
     });
   }
   return chunks;
@@ -86,7 +87,7 @@ function splitSegmentIntoChunks(words: any[]) {
 /**
  * Builds a single Dialogue line for the ASS script.
  */
-function buildDialogueLine(segment: any) {
+function buildDialogueLine(segment: WhisperSegment) {
   const start = formatTime(segment.start);
   const end = formatTime(segment.end);
   const karaokeText = buildKaraokeText(segment);
@@ -97,7 +98,7 @@ function buildDialogueLine(segment: any) {
 /**
  * Builds the karaoke effect text for a segment.
  */
-function buildKaraokeText(segment: any) {
+function buildKaraokeText(segment: WhisperSegment) {
   // Dynamic pop animation: growth spurt followed by settle
   let text = "{\\fscx90\\fscy90\\t(0,80,\\fscx110\\fscy110)\\t(80,160,\\fscx100\\fscy100)}";
 
@@ -108,7 +109,7 @@ function buildKaraokeText(segment: any) {
   let currentTime = segment.start;
 
   for (let i = 0; i < segment.words.length; i++) {
-    const wordData = segment.words[i];
+    const wordData = segment.words[i]!;
     const word = wordData.word.trim();
     const duration = Math.max(1, Math.round((wordData.end - wordData.start) * 100));
     const gap = Math.max(0, Math.round((wordData.start - currentTime) * 100));

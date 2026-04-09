@@ -1,11 +1,11 @@
-export interface CutResult {
-  top: number;
-  left: number;
-  scaledWidth: number;
-  scaledHeight: number;
+import type { CutResult } from "../types.ts";
+
+export interface FaceDetectionResult {
+  _imageDims: { _width: number; _height: number };
+  _box: { _x: number; _y: number; _width: number; _height: number };
 }
 
-export function calculateCuts(result: any[]): CutResult {
+export function calculateCuts(result: FaceDetectionResult[]): CutResult {
   const reelsWidth = 1080;
   const reelsHeight = 1920;
 
@@ -16,7 +16,7 @@ export function calculateCuts(result: any[]): CutResult {
     return defaultCut;
   }
 
-  const faceResult = result[0];
+  const faceResult = result[0]!;
   const { _width: originalWidth, _height: originalHeight } = faceResult._imageDims;
 
   // Calculate scale to fill the Reels frame (1080x1920)

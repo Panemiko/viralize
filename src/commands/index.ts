@@ -1,6 +1,5 @@
-export { default as commandCheck } from "./check.ts";
-export { default as commandClean } from "./clean.ts";
-export { default as commandList } from "./list.ts";
-export { default as commandRun } from "./run.ts";
-export { default as commandSetup } from "./setup.ts";
-
+export * as check from "./check.ts";
+export * as clean from "./clean.ts";
+export * as list from "./list.ts";
+export * as run from "./run.ts";
+export * as setup from "./setup.ts";

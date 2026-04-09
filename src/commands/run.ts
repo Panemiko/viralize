@@ -1,68 +1,58 @@
-import cliProgress from "cli-progress";
 import path from "node:path";
 import { analyzeVideoFace } from "../steps/face-analysis.ts";
 import { generateSubtitles } from "../steps/transcription.ts";
 import { renderFinalVideo } from "../steps/video-processor.ts";
-import type { GlobalContext, RunArgs, ResolvedInputs } from "../types.ts";
+import type { GlobalContext, RunArgs, ResolvedInputs, CutResult } from "../types.ts";
+import type { TerminalUI } from "../utils/ui.ts";
 
 /**
  * Main execution flow for video conversion.
  */
-export default async function run(global: GlobalContext) {
-  const { logger, argv, chalk, question, $, PROJECT_ROOT } = global;
+export default async function run(ctx: GlobalContext) {
+  const { logger, argv, ui } = ctx;
   const args = parseArgs(argv);
 
-  logger.info("🚀 Starting viralize Conversion Process");
+  ui.log("🚀 Starting viralize Conversion Process");
   console.time("Total execution time");
 
-  // MultiBar initialization
-  const multibar = new cliProgress.MultiBar(
-    {
-      clearOnComplete: false,
-      hideCursor: true,
-      format: " {bar} | {percentage}% | {task}",
-    },
-    cliProgress.Presets.shades_classic,
-  );
-
-  const globalBar = multibar.create(100, 0, { task: "Overall Progress" });
+  const progress = ui.getBar("global", 100, "Overall Progress");
 
   try {
-    const inputs = await resolveInputs(args, global);
-    globalBar.update(5, { task: "Overall Progress: Phase 1" });
+    const inputs = await resolveInputs(args, ctx);
+    progress.update(5, { task: "Phase 1: Face Analysis" });
 
     const cut = await handleFaceAnalysis(
       inputs.videoFile,
       args.skipFace,
-      global,
+      ctx,
     );
-    globalBar.update(30, { task: "Overall Progress: Phase 2" });
+    progress.update(30, { task: "Phase 2: Transcription" });
 
     const subtitleFile = await handleTranscription(
       inputs.videoFile,
       args.subtitle,
       args.skipSubs,
-      global,
+      ctx,
     );
-    globalBar.update(60, { task: "Overall Progress: Review" });
+    progress.update(60, { task: "Wait: Subtitle Review" });
 
-    await handleSubtitleReview(inputs.videoFile, subtitleFile, args, global);
-    globalBar.update(70, { task: "Overall Progress: Phase 3" });
+    await handleSubtitleReview(inputs.videoFile, subtitleFile, args, ctx);
+    progress.update(70, { task: "Phase 3: Rendering" });
 
     await handleRendering(
       inputs,
       subtitleFile,
       cut,
       args.skipRender,
-      multibar,
-      global,
+      ui,
+      ctx,
     );
-    globalBar.update(100, { task: "Overall Progress: Complete" });
+    progress.update(100, { task: "Complete" });
 
-    multibar.stop();
+    ui.stop();
     logger.info("✅ Process completed successfully!");
   } catch (err) {
-    if (multibar) multibar.stop();
+    ui.stop();
     logger.error({ err }, "An error occurred during the conversion process");
     process.exit(1);
   } finally {
@@ -78,10 +68,9 @@ async function handleFaceAnalysis(
   skipFace: boolean | undefined,
   { logger }: GlobalContext,
 ) {
-  logger.info("--- PHASE 1: Face Analysis ---");
   if (skipFace) {
-    logger.warn("Skipping face analysis. Using default centering (top: 0).");
-    return { top: 0 };
+    logger.warn("Skipping face analysis. Using default centering.");
+    return { top: 0, left: 0, scaledWidth: 1080, scaledHeight: 1920 };
   }
   return await analyzeVideoFace(videoFile);
 }
@@ -93,10 +82,8 @@ async function handleTranscription(
   videoFile: string,
   manualSubtitle: string | undefined,
   skipSubs: boolean | undefined,
-  { logger }: GlobalContext,
+  { logger, ui }: GlobalContext,
 ) {
-  logger.info("--- PHASE 2: Transcription ---");
-
   if (manualSubtitle) {
     logger.info(`Using manual subtitle file: ${manualSubtitle}`);
     return manualSubtitle;
@@ -107,7 +94,7 @@ async function handleTranscription(
     return null;
   }
 
-  return await generateSubtitles(videoFile);
+  return await generateSubtitles(videoFile, ui.multibar as any);
 }
 
 /**
@@ -117,32 +104,33 @@ async function handleSubtitleReview(
   videoFile: string,
   subtitleFile: string | null,
   args: RunArgs,
-  { logger, chalk, question, $ }: GlobalContext,
+  { logger, chalk, question, $, ui }: GlobalContext,
 ) {
   const shouldReview = subtitleFile && !args.skipRender && !args.skipReview;
   if (!shouldReview) return;
 
-  const revision = await question(
+  process.stdout.write(
     chalk.yellow(
       "\n❓ Do you want to review/revise the subtitles before rendering? (y/n): ",
     ),
   );
+  
+  const key = await ui.readKey();
+  process.stdout.write(key + "\n");
+  
+  if (!["y", "Y"].includes(key)) return;
 
-  const confirmed =
-    revision.toLowerCase() === "y" || revision.toLowerCase() === "yes";
-  if (!confirmed) return;
-
-  logger.info("🎬 Opening MPV for review. Close MPV when finished.");
+  logger.info(`🎬 Opening MPV for review. Close MPV when finished.`);
   logger.info(`To edit the captions, open: ${subtitleFile}`);
 
   try {
     await $`mpv ${videoFile} --sub-file=${subtitleFile} --autofit=70% --title="Subtitle Review - Close to continue"`;
-    logger.info(
-      `📝 Note: If you made changes to ${subtitleFile}, they will be applied now.`,
+    
+    process.stdout.write(
+      chalk.yellow("\n▶ Press any key to continue to Phase 3 (Rendering)... "),
     );
-    await question(
-      chalk.yellow("   Press Enter to continue to Phase 3 (Rendering)... "),
-    );
+    await ui.readKey();
+    process.stdout.write("\n");
   } catch {
     logger.error("❌ Could not open MPV. Make sure it is installed.");
   }
@@ -154,13 +142,11 @@ async function handleSubtitleReview(
 async function handleRendering(
   inputs: ResolvedInputs,
   subtitleFile: string | null,
-  cut: any,
+  cut: CutResult,
   skipRender: boolean | undefined,
-  multibar: any,
+  ui: TerminalUI,
   { logger }: GlobalContext,
 ) {
-  logger.info("--- PHASE 3: Video Processing ---");
-
   if (skipRender) {
     logger.warn("Skipping video rendering.");
     return;
@@ -170,27 +156,24 @@ async function handleRendering(
     ...inputs,
     subtitleFile,
     cut,
-    multibar,
+    multibar: ui.multibar as any,
   });
 }
 
 /**
  * Parses CLI arguments.
  */
-function parseArgs(argv: any): RunArgs {
+function parseArgs(argv: GlobalContext["argv"]): RunArgs {
   return {
-    input: argv["i"] || argv["input"],
-    filter: argv["f"] || argv["filter"],
-    output: argv["o"] || argv["output"],
-    subtitle: argv["s"] || argv["subtitle"],
+    input: argv.i || argv.input || argv._[1],
+    filter: argv.f || argv.filter,
+    output: argv.o || argv.output,
+    subtitle: argv.s || argv.subtitle,
     skipFace: argv["skip-face"],
     skipSubs: argv["skip-subs"],
     skipRender: argv["skip-render"],
     skipReview: argv["skip-review"],
-    help:
-      argv["h"] ||
-      argv["help"] ||
-      (Object.keys(argv).length === 1 && !argv["i"] && !argv["input"]),
+    help: argv.h || argv.help,
   };
 }
 
@@ -199,20 +182,21 @@ function parseArgs(argv: any): RunArgs {
  */
 async function resolveInputs(
   args: RunArgs,
-  { logger, PROJECT_ROOT, question, $ }: GlobalContext,
+  { logger, PROJECT_ROOT, question, fs }: GlobalContext,
 ): Promise<ResolvedInputs> {
   const videoFile = args.input;
   if (!videoFile) {
-    throw new Error("No input file specified. Use -i or --input.");
+    throw new Error("No input file specified. Usage: viralize run <video_path>");
   }
 
   let { filter: filterName, output: outputName } = args;
 
   if (!filterName) {
     const filtersPath = path.resolve(PROJECT_ROOT, "assets/filters/");
-    const filtersListing = await $`ls ${filtersPath}`;
+    const filters = fs.readdirSync(filtersPath).filter((f: string) => f.endsWith(".CUBE"));
     logger.info("Available filters:");
-    process.stdout.write(filtersListing.stdout);
+    filters.forEach((f: string) => console.log(` - ${f.replace(".CUBE", "")}`));
+    
     filterName = await question(
       "\nChoose a filter from the list above (without .CUBE extension): \n",
     );
