@@ -2,15 +2,16 @@ export function getJumpCutFilter(silenceLogs, totalDuration) {
   const silenceStartRegex = /silence_start: ([\d.]+)/g;
   const silenceEndRegex = /silence_end: ([\d.]+)/g;
 
-  const starts = [...silenceLogs.matchAll(silenceStartRegex)].map(m => parseFloat(m[1]));
-  const ends = [...silenceLogs.matchAll(silenceEndRegex)].map(m => parseFloat(m[1]));
+  const starts = [...silenceLogs.matchAll(silenceStartRegex)].map((m) => parseFloat(m[1]));
+  const ends = [...silenceLogs.matchAll(silenceEndRegex)].map((m) => parseFloat(m[1]));
 
   const segments = [];
   let lastEnd = 0;
 
   // Criar segmentos com som
   for (let i = 0; i < starts.length; i++) {
-    if (starts[i] > lastEnd + 0.1) { // Pequena margem para evitar cortes micro
+    if (starts[i] > lastEnd + 0.1) {
+      // Pequena margem para evitar cortes micro
       segments.push({ start: lastEnd, end: starts[i] });
     }
     lastEnd = ends[i];
@@ -38,6 +39,6 @@ export function getJumpCutFilter(silenceLogs, totalDuration) {
 
   return {
     filter: videoParts + audioParts + concat,
-    hasCuts: true
+    hasCuts: true,
   };
 }

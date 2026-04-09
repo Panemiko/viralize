@@ -1,5 +1,7 @@
 import { fs } from "zx";
 
+const MAX_WORDS_PER_LINE = 2; // Maximum 2 words per screen for high dynamism
+
 /**
  * Converts Whisper JSON output to an ASS subtitle file with karaoke effects.
  * @param {object} whisperJson The JSON output from Whisper.
@@ -7,18 +9,28 @@ import { fs } from "zx";
  * @param {object} style Options for styling.
  */
 export async function generateAssKaraoke(whisperJson, outputPath, style = {}) {
+  const header = buildAssHeader(style);
+  const processedSegments = preProcessSegments(whisperJson.segments || []);
+  const events = processedSegments.map(buildDialogueLine).join("");
+
+  await fs.writeFile(outputPath, `${header}${events}`);
+}
+
+/**
+ * Builds the ASS file header.
+ */
+function buildAssHeader(style) {
   const {
     fontName = "Noto Sans",
     fontSize = 24,
-    primaryColor = "&H00ABFF", // Pinkish highlight
-    secondaryColor = "&HFFFFFF", // White base
+    primaryColor = "&H00ABFF",
+    secondaryColor = "&HFFFFFF",
     outlineColor = "&H000000",
     shadowColor = "&H000000",
     marginV = 150,
   } = style;
 
-  // ASS Header
-  let assContent = `[Script Info]
+  return `[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
@@ -31,77 +43,84 @@ Style: Default,${fontName},${fontSize},${primaryColor},${secondaryColor},${outli
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
+}
 
-  // Chunking segments to have fewer words for a more dynamic look
-  const MAX_WORDS_PER_LINE = 2; // Maximum 2 words per screen for high dynamism
-  const processedSegments = [];
+/**
+ * Pre-processes segments by splitting long ones into smaller chunks.
+ */
+function preProcessSegments(segments) {
+  const result = [];
 
-  for (const segment of whisperJson.segments || []) {
+  for (const segment of segments) {
     if (segment.words && segment.words.length > MAX_WORDS_PER_LINE) {
-      for (let i = 0; i < segment.words.length; i += MAX_WORDS_PER_LINE) {
-        const chunk = segment.words.slice(i, i + MAX_WORDS_PER_LINE);
-        processedSegments.push({
-          start: chunk[0].start,
-          end: chunk[chunk.length - 1].end,
-          words: chunk,
-          text: chunk.map(w => w.word).join(" ")
-        });
-      }
+      result.push(...splitSegmentIntoChunks(segment.words));
     } else {
-      processedSegments.push(segment);
+      result.push(segment);
     }
   }
 
-  for (const segment of processedSegments) {
-    const start = formatTime(segment.start);
-    const end = formatTime(segment.end);
-    
-    // Dynamic pop animation: growth spurt followed by settle
-    let dialogueText = "{\\fscx90\\fscy90\\t(0,80,\\fscx110\\fscy110)\\t(80,160,\\fscx100\\fscy100)}";
-    
-    if (segment.words && segment.words.length > 0) {
-      let currentPosTime = segment.start;
-      
-      for (let i = 0; i < segment.words.length; i++) {
-        const wordData = segment.words[i];
-        const word = wordData.word.trim();
-        const wordStart = wordData.start;
-        const wordEnd = wordData.end;
-        
-        // Duration from word start to word end (the "singing" duration)
-        const wordDuration = Math.max(1, Math.round((wordEnd - wordStart) * 100));
-        
-        // Time between the end of the last word (or start of segment) and the start of this word
-        const gapDuration = Math.max(0, Math.round((wordStart - currentPosTime) * 100));
-        
-        if (gapDuration > 0) {
-          dialogueText += `{\\k${gapDuration}} `;
-        }
-        
-        // The word itself with its duration
-        dialogueText += `{\\k${wordDuration}}${word}`;
-        
-        // Add a space after the word if not the last one
-        if (i < segment.words.length - 1) {
-          dialogueText += " ";
-        }
-        
-        currentPosTime = wordEnd;
-      }
-    } else {
-      dialogueText += segment.text.trim();
-    }
+  return result;
+}
 
-    assContent += `Dialogue: 0,${start},${end},Default,,0,0,0,,${dialogueText.trim()}\n`;
+/**
+ * Splits a list of words into smaller chunks for dynamic display.
+ */
+function splitSegmentIntoChunks(words) {
+  const chunks = [];
+  for (let i = 0; i < words.length; i += MAX_WORDS_PER_LINE) {
+    const chunkWords = words.slice(i, i + MAX_WORDS_PER_LINE);
+    chunks.push({
+      start: chunkWords[0].start,
+      end: chunkWords[chunkWords.length - 1].end,
+      words: chunkWords,
+      text: chunkWords.map((w) => w.word).join(" "),
+    });
+  }
+  return chunks;
+}
+
+/**
+ * Builds a single Dialogue line for the ASS script.
+ */
+function buildDialogueLine(segment) {
+  const start = formatTime(segment.start);
+  const end = formatTime(segment.end);
+  const karaokeText = buildKaraokeText(segment);
+
+  return `Dialogue: 0,${start},${end},Default,,0,0,0,,${karaokeText}\n`;
+}
+
+/**
+ * Builds the karaoke effect text for a segment.
+ */
+function buildKaraokeText(segment) {
+  // Dynamic pop animation: growth spurt followed by settle
+  let text = "{\\fscx90\\fscy90\\t(0,80,\\fscx110\\fscy110)\\t(80,160,\\fscx100\\fscy100)}";
+
+  if (!segment.words || segment.words.length === 0) {
+    return `${text}${segment.text.trim()}`;
   }
 
-  await fs.writeFile(outputPath, assContent);
+  let currentTime = segment.start;
+
+  for (let i = 0; i < segment.words.length; i++) {
+    const wordData = segment.words[i];
+    const word = wordData.word.trim();
+    const duration = Math.max(1, Math.round((wordData.end - wordData.start) * 100));
+    const gap = Math.max(0, Math.round((wordData.start - currentTime) * 100));
+
+    if (gap > 0) text += `{\\k${gap}} `;
+    text += `{\\k${duration}}${word}`;
+
+    if (i < segment.words.length - 1) text += " ";
+    currentTime = wordData.end;
+  }
+
+  return text.trim();
 }
 
 /**
  * Formats seconds to ASS time format: H:MM:SS.CC
- * @param {number} seconds 
- * @returns {string}
  */
 function formatTime(seconds) {
   if (seconds < 0) seconds = 0;
@@ -109,6 +128,6 @@ function formatTime(seconds) {
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
   const c = Math.floor((seconds % 1) * 100);
-  
+
   return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}.${c.toString().padStart(2, "0")}`;
 }
