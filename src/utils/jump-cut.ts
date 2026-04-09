@@ -1,20 +1,25 @@
-export function getJumpCutFilter(silenceLogs, totalDuration) {
+export function getJumpCutFilter(silenceLogs: string, totalDuration: number) {
   const silenceStartRegex = /silence_start: ([\d.]+)/g;
   const silenceEndRegex = /silence_end: ([\d.]+)/g;
 
-  const starts = [...silenceLogs.matchAll(silenceStartRegex)].map((m) => parseFloat(m[1]));
-  const ends = [...silenceLogs.matchAll(silenceEndRegex)].map((m) => parseFloat(m[1]));
+  const starts = [...silenceLogs.matchAll(silenceStartRegex)].map((m) =>
+    parseFloat(m[1]!),
+  );
+  const ends = [...silenceLogs.matchAll(silenceEndRegex)].map((m) =>
+    parseFloat(m[1]!),
+  );
 
-  const segments = [];
+  const segments: { start: number; end: number }[] = [];
   let lastEnd = 0;
 
   // Criar segmentos com som
   for (let i = 0; i < starts.length; i++) {
-    if (starts[i] > lastEnd + 0.1) {
+    const start = starts[i]!;
+    if (start > lastEnd + 0.1) {
       // Pequena margem para evitar cortes micro
-      segments.push({ start: lastEnd, end: starts[i] });
+      segments.push({ start: lastEnd, end: start });
     }
-    lastEnd = ends[i];
+    lastEnd = ends[i]!;
   }
 
   // Adicionar o último segmento até o fim do vídeo

@@ -8,7 +8,11 @@ const MAX_WORDS_PER_LINE = 2; // Maximum 2 words per screen for high dynamism
  * @param {string} outputPath The path to save the .ass file.
  * @param {object} style Options for styling.
  */
-export async function generateAssKaraoke(whisperJson, outputPath, style = {}) {
+export async function generateAssKaraoke(
+  whisperJson: any,
+  outputPath: string,
+  style: any = {},
+) {
   const header = buildAssHeader(style);
   const processedSegments = preProcessSegments(whisperJson.segments || []);
   const events = processedSegments.map(buildDialogueLine).join("");
@@ -19,7 +23,7 @@ export async function generateAssKaraoke(whisperJson, outputPath, style = {}) {
 /**
  * Builds the ASS file header.
  */
-function buildAssHeader(style) {
+function buildAssHeader(style: any) {
   const {
     fontName = "Noto Sans",
     fontSize = 24,
@@ -48,7 +52,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 /**
  * Pre-processes segments by splitting long ones into smaller chunks.
  */
-function preProcessSegments(segments) {
+function preProcessSegments(segments: any[]) {
   const result = [];
 
   for (const segment of segments) {
@@ -65,7 +69,7 @@ function preProcessSegments(segments) {
 /**
  * Splits a list of words into smaller chunks for dynamic display.
  */
-function splitSegmentIntoChunks(words) {
+function splitSegmentIntoChunks(words: any[]) {
   const chunks = [];
   for (let i = 0; i < words.length; i += MAX_WORDS_PER_LINE) {
     const chunkWords = words.slice(i, i + MAX_WORDS_PER_LINE);
@@ -82,7 +86,7 @@ function splitSegmentIntoChunks(words) {
 /**
  * Builds a single Dialogue line for the ASS script.
  */
-function buildDialogueLine(segment) {
+function buildDialogueLine(segment: any) {
   const start = formatTime(segment.start);
   const end = formatTime(segment.end);
   const karaokeText = buildKaraokeText(segment);
@@ -93,7 +97,7 @@ function buildDialogueLine(segment) {
 /**
  * Builds the karaoke effect text for a segment.
  */
-function buildKaraokeText(segment) {
+function buildKaraokeText(segment: any) {
   // Dynamic pop animation: growth spurt followed by settle
   let text = "{\\fscx90\\fscy90\\t(0,80,\\fscx110\\fscy110)\\t(80,160,\\fscx100\\fscy100)}";
 
@@ -122,7 +126,7 @@ function buildKaraokeText(segment) {
 /**
  * Formats seconds to ASS time format: H:MM:SS.CC
  */
-function formatTime(seconds) {
+function formatTime(seconds: number) {
   if (seconds < 0) seconds = 0;
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);

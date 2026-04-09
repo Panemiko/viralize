@@ -1,23 +1,16 @@
-#!/usr/bin/env zx
-
 import cliProgress from "cli-progress";
-import { analyzeVideoFace } from "./steps/face-analysis.mjs";
-import { generateSubtitles } from "./steps/transcription.mjs";
-import { renderFinalVideo } from "./steps/video-processor.mjs";
-import logger from "./utils/logger.mjs";
 import path from "node:path";
-import { PROJECT_ROOT } from "./utils/paths.mjs";
+import { analyzeVideoFace } from "../steps/face-analysis.ts";
+import { generateSubtitles } from "../steps/transcription.ts";
+import { renderFinalVideo } from "../steps/video-processor.ts";
+import type { GlobalContext, RunArgs, ResolvedInputs } from "../types.ts";
 
 /**
  * Main execution flow for video conversion.
  */
-async function main() {
-  const args = parseArgs();
-
-  if (args.help) {
-    showHelp();
-    return;
-  }
+export default async function run(global: GlobalContext) {
+  const { logger, argv, chalk, question, $, PROJECT_ROOT } = global;
+  const args = parseArgs(argv);
 
   logger.info("🚀 Starting viralize Conversion Process");
   console.time("Total execution time");
@@ -35,25 +28,41 @@ async function main() {
   const globalBar = multibar.create(100, 0, { task: "Overall Progress" });
 
   try {
-    const inputs = await resolveInputs(args);
+    const inputs = await resolveInputs(args, global);
     globalBar.update(5, { task: "Overall Progress: Phase 1" });
 
-    const cut = await handleFaceAnalysis(inputs.videoFile, args.skipFace);
+    const cut = await handleFaceAnalysis(
+      inputs.videoFile,
+      args.skipFace,
+      global,
+    );
     globalBar.update(30, { task: "Overall Progress: Phase 2" });
 
-    const subtitleFile = await handleTranscription(inputs.videoFile, args.subtitle, args.skipSubs);
+    const subtitleFile = await handleTranscription(
+      inputs.videoFile,
+      args.subtitle,
+      args.skipSubs,
+      global,
+    );
     globalBar.update(60, { task: "Overall Progress: Review" });
 
-    await handleSubtitleReview(inputs.videoFile, subtitleFile, args);
+    await handleSubtitleReview(inputs.videoFile, subtitleFile, args, global);
     globalBar.update(70, { task: "Overall Progress: Phase 3" });
 
-    await handleRendering(inputs, subtitleFile, cut, args.skipRender, multibar);
+    await handleRendering(
+      inputs,
+      subtitleFile,
+      cut,
+      args.skipRender,
+      multibar,
+      global,
+    );
     globalBar.update(100, { task: "Overall Progress: Complete" });
 
     multibar.stop();
     logger.info("✅ Process completed successfully!");
   } catch (err) {
-    multibar.stop();
+    if (multibar) multibar.stop();
     logger.error({ err }, "An error occurred during the conversion process");
     process.exit(1);
   } finally {
@@ -64,7 +73,11 @@ async function main() {
 /**
  * Handles the face analysis phase.
  */
-async function handleFaceAnalysis(videoFile, skipFace) {
+async function handleFaceAnalysis(
+  videoFile: string,
+  skipFace: boolean | undefined,
+  { logger }: GlobalContext,
+) {
   logger.info("--- PHASE 1: Face Analysis ---");
   if (skipFace) {
     logger.warn("Skipping face analysis. Using default centering (top: 0).");
@@ -76,7 +89,12 @@ async function handleFaceAnalysis(videoFile, skipFace) {
 /**
  * Handles the transcription phase.
  */
-async function handleTranscription(videoFile, manualSubtitle, skipSubs) {
+async function handleTranscription(
+  videoFile: string,
+  manualSubtitle: string | undefined,
+  skipSubs: boolean | undefined,
+  { logger }: GlobalContext,
+) {
   logger.info("--- PHASE 2: Transcription ---");
 
   if (manualSubtitle) {
@@ -95,15 +113,23 @@ async function handleTranscription(videoFile, manualSubtitle, skipSubs) {
 /**
  * Handles the subtitle review phase.
  */
-async function handleSubtitleReview(videoFile, subtitleFile, args) {
+async function handleSubtitleReview(
+  videoFile: string,
+  subtitleFile: string | null,
+  args: RunArgs,
+  { logger, chalk, question, $ }: GlobalContext,
+) {
   const shouldReview = subtitleFile && !args.skipRender && !args.skipReview;
   if (!shouldReview) return;
 
   const revision = await question(
-    chalk.yellow("\n❓ Do you want to review/revise the subtitles before rendering? (y/n): "),
+    chalk.yellow(
+      "\n❓ Do you want to review/revise the subtitles before rendering? (y/n): ",
+    ),
   );
 
-  const confirmed = revision.toLowerCase() === "y" || revision.toLowerCase() === "yes";
+  const confirmed =
+    revision.toLowerCase() === "y" || revision.toLowerCase() === "yes";
   if (!confirmed) return;
 
   logger.info("🎬 Opening MPV for review. Close MPV when finished.");
@@ -111,9 +137,13 @@ async function handleSubtitleReview(videoFile, subtitleFile, args) {
 
   try {
     await $`mpv ${videoFile} --sub-file=${subtitleFile} --autofit=70% --title="Subtitle Review - Close to continue"`;
-    logger.info(`📝 Note: If you made changes to ${subtitleFile}, they will be applied now.`);
-    await question(chalk.yellow("   Press Enter to continue to Phase 3 (Rendering)... "));
-  } catch (err) {
+    logger.info(
+      `📝 Note: If you made changes to ${subtitleFile}, they will be applied now.`,
+    );
+    await question(
+      chalk.yellow("   Press Enter to continue to Phase 3 (Rendering)... "),
+    );
+  } catch {
     logger.error("❌ Could not open MPV. Make sure it is installed.");
   }
 }
@@ -121,7 +151,14 @@ async function handleSubtitleReview(videoFile, subtitleFile, args) {
 /**
  * Handles the video rendering phase.
  */
-async function handleRendering(inputs, subtitleFile, cut, skipRender, multibar) {
+async function handleRendering(
+  inputs: ResolvedInputs,
+  subtitleFile: string | null,
+  cut: any,
+  skipRender: boolean | undefined,
+  multibar: any,
+  { logger }: GlobalContext,
+) {
   logger.info("--- PHASE 3: Video Processing ---");
 
   if (skipRender) {
@@ -140,7 +177,7 @@ async function handleRendering(inputs, subtitleFile, cut, skipRender, multibar) 
 /**
  * Parses CLI arguments.
  */
-function parseArgs() {
+function parseArgs(argv: any): RunArgs {
   return {
     input: argv["i"] || argv["input"],
     filter: argv["f"] || argv["filter"],
@@ -160,7 +197,10 @@ function parseArgs() {
 /**
  * Resolves required inputs, prompting the user if necessary.
  */
-async function resolveInputs(args) {
+async function resolveInputs(
+  args: RunArgs,
+  { logger, PROJECT_ROOT, question, $ }: GlobalContext,
+): Promise<ResolvedInputs> {
   const videoFile = args.input;
   if (!videoFile) {
     throw new Error("No input file specified. Use -i or --input.");
@@ -184,29 +224,3 @@ async function resolveInputs(args) {
 
   return { videoFile: path.resolve(videoFile), filterName, outputName };
 }
-
-/**
- * Displays help message.
- */
-function showHelp() {
-  console.log(`
-  ${chalk.bold("viralize")}
-
-  ${chalk.bold("Usage:")}
-  viralize -i video.mp4 [options]
-
-  ${chalk.bold("Options:")}
-    -h | --help         - Show help message
-    -i | --input        - Path of the video to be converted
-    -f | --filter       - Name of the .CUBE filter to apply
-    -o | --output       - Name of the output file
-    -s | --subtitle     - Use a manual .ass subtitle file instead of transcribing
-    --skip-face         - Skip facial analysis and use default crop
-    --skip-subs         - Skip transcription and subtitle generation
-    --skip-review       - Skip interactive subtitle review step
-    --skip-render       - Skip final video rendering
-  `);
-}
-
-// Start the process
-main();

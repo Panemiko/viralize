@@ -1,12 +1,9 @@
-/**
- *
- * @param {String} s
- * @param {Number} n
- * @param {Boolean} useSpaces
- * @param {String[]} a
- * @returns {String[]}
- */
-export function fold(s, n, useSpaces, a) {
+export function fold(
+  s: string,
+  n: number,
+  useSpaces: boolean,
+  a: string[] = [],
+): string[] {
   a = a || [];
 
   if (s.length <= n) {

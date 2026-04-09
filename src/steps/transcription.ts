@@ -1,17 +1,23 @@
 import { $, fs } from "zx";
-import { generateAssKaraoke } from "../utils/ass-generator.mjs";
-import logger from "../utils/logger.mjs";
+import { generateAssKaraoke } from "../utils/ass-generator.ts";
+import logger from "../utils/logger.ts";
 import path from "node:path";
-import { PROJECT_ROOT, INTERNAL_TEMP_DIR } from "../utils/paths.mjs";
+import { PROJECT_ROOT, INTERNAL_TEMP_DIR } from "../utils/paths.ts";
 
 /**
  * Generates subtitles for a video file using Whisper.
- * @param {string} videoFile Path to the input video file.
- * @returns {Promise<string>} Path to the generated subtitle file.
+ * @param videoFile Path to the input video file.
+ * @param multibar CLI progress multibar.
+ * @returns Path to the generated subtitle file.
  */
-export async function generateSubtitles(videoFile, multibar) {
+export async function generateSubtitles(
+  videoFile: string,
+  multibar?: any, // I'll use any for multibar for now or @types/cli-progress if I have it
+) {
   logger.info("Extracting audio for transcription...");
-  const bar = multibar?.create(100, 0, { task: "Transcription: extracting audio" });
+  const bar = multibar?.create(100, 0, {
+    task: "Transcription: extracting audio",
+  });
 
   const audioTemp = path.resolve(INTERNAL_TEMP_DIR, "audio_cut.wav");
   const jsonFile = path.resolve(INTERNAL_TEMP_DIR, "audio_cut.json");
@@ -72,7 +78,7 @@ export async function generateSubtitles(videoFile, multibar) {
 /**
  * Performs transcription with fallback to CPU if GPU fails.
  */
-async function performTranscription(whisperCmd, whisperArgs) {
+async function performTranscription(whisperCmd: string, whisperArgs: string[]) {
   try {
     logger.info("Transcribing with Whisper (attempting GPU/CUDA)...");
     await $`${whisperCmd} ${whisperArgs} --device cuda`;
@@ -85,13 +91,13 @@ async function performTranscription(whisperCmd, whisperArgs) {
 /**
  * Processes whisper data (e.g., converting to uppercase).
  */
-function processWhisperData(whisperData) {
+function processWhisperData(whisperData: any) {
   if (!whisperData.segments) return;
 
-  whisperData.segments.forEach((seg) => {
+  whisperData.segments.forEach((seg: any) => {
     seg.text = seg.text.toUpperCase();
     if (seg.words) {
-      seg.words.forEach((w) => {
+      seg.words.forEach((w: any) => {
         w.word = w.word.toUpperCase();
       });
     }

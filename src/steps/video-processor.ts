@@ -1,7 +1,8 @@
 import { $ } from "zx";
-import logger from "../utils/logger.mjs";
+import logger from "../utils/logger.ts";
 import path from "node:path";
-import { ASSETS_DIR } from "../utils/paths.mjs";
+import { ASSETS_DIR } from "../utils/paths.ts";
+import type { RenderParams } from "../types.ts";
 
 /**
  * Renders the final video with crops, filters, and subtitles.
@@ -15,7 +16,7 @@ export async function renderFinalVideo({
   outputName,
   videoOutput = "videos/",
   multibar,
-}) {
+}: RenderParams) {
   logger.info("Configuring FFmpeg filter chain...");
 
   const videoFilters = buildVideoFilters(cut, filterName, subtitleFile);
@@ -42,7 +43,7 @@ export async function renderFinalVideo({
 /**
  * Gets video duration in seconds using ffprobe.
  */
-async function getVideoDuration(videoFile) {
+async function getVideoDuration(videoFile: string) {
   const result =
     await $`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ${videoFile}`;
   return parseFloat(result.stdout.trim());
@@ -51,7 +52,11 @@ async function getVideoDuration(videoFile) {
 /**
  * Builds the FFmpeg video filter string.
  */
-function buildVideoFilters(cut, filterName, subtitleFile) {
+function buildVideoFilters(
+  cut: any,
+  filterName: string,
+  subtitleFile: string | null,
+) {
   const filterPath = path.resolve(ASSETS_DIR, `filters/${filterName}.CUBE`);
   let filters = `scale=w=${cut.scaledWidth}:h=${cut.scaledHeight},crop=1080:1920:${cut.left}:${cut.top},lut3d=${filterPath}`;
 
@@ -66,16 +71,16 @@ function buildVideoFilters(cut, filterName, subtitleFile) {
  * Performs rendering with progress bar and fallback to software encoding.
  */
 async function performRendering(
-  videoFile,
-  complexFilter,
-  filterName,
-  outputPath,
-  duration,
-  multibar,
+  videoFile: string,
+  complexFilter: string,
+  filterName: string,
+  outputPath: string,
+  duration: number,
+  multibar: any,
 ) {
   const bar = multibar?.create(100, 0, { task: `Rendering: ${filterName}` });
 
-  const runFfmpeg = async (encoder) => {
+  const runFfmpeg = async (encoder: string) => {
     const args = [
       "-hide_banner",
       "-loglevel",

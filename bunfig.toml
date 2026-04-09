@@ -1,0 +1,3 @@
+[install]
+# Only use package-lock.json, don't create bun's own lock files
+lockfile = false

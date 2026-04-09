@@ -1,4 +1,11 @@
-export function calculateCuts(result) {
+export interface CutResult {
+  top: number;
+  left: number;
+  scaledWidth: number;
+  scaledHeight: number;
+}
+
+export function calculateCuts(result: any[]): CutResult {
   const reelsWidth = 1080;
   const reelsHeight = 1920;
 
