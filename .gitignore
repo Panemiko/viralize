@@ -1,0 +1,10 @@
+*.mp4
+tmp/*
+!tmp/.gitkeep
+/origins/*
+!origins/.gitkeep
+/videos/*
+!videos/.gitkeep
+*.DS_Store
+node_modules/
+.venv/
