@@ -2,7 +2,7 @@
   "name": "video-to-reels",
   "version": "1.0.0",
   "description": "",
-  "main": "src/face-detection.js",
+  "main": "src/convert.js",
   "scripts": {
     "init": "bun install && python -m venv .venv && ./.venv/bin/pip install -r requirements.txt && mkdir -p videos tmp",
     "start": "zx src/convert.mjs",
@@ -14,6 +14,7 @@
   "dependencies": {
     "@tensorflow/tfjs-node": "^3.13.0",
     "@vladmandic/face-api": "^1.6.5",
+    "bun": "^1.3.11",
     "zx": "^8.8.5"
   },
   "private": true

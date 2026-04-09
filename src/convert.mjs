@@ -29,8 +29,11 @@ async function main() {
   }
 
   console.log(chalk.magenta("\n--- PHASE 2: Transcription ---"));
-  let subtitleFile = null;
-  if (args.skipSubs) {
+  let subtitleFile = args.subtitle || null;
+  
+  if (subtitleFile) {
+    console.log(chalk.cyan(`  -> Using manual subtitle file: ${subtitleFile}`));
+  } else if (args.skipSubs) {
     console.log(chalk.yellow("  -> Skipping transcription."));
   } else {
     subtitleFile = await generateSubtitles(videoFile);
@@ -61,6 +64,7 @@ function parseArgs() {
     input: argv["i"] || argv["input"],
     filter: argv["f"] || argv["filter"],
     output: argv["o"] || argv["output"],
+    subtitle: argv["s"] || argv["subtitle"],
     skipFace: argv["skip-face"],
     skipSubs: argv["skip-subs"],
     skipRender: argv["skip-render"],
@@ -112,6 +116,7 @@ function showHelp() {
     -i | --input        - Path of the video to be converted
     -f | --filter       - Name of the .CUBE filter to apply
     -o | --output       - Name of the output file
+    -s | --subtitle     - Use a manual .ass subtitle file instead of transcribing
     --skip-face         - Skip facial analysis and use default crop
     --skip-subs         - Skip transcription and subtitle generation
     --skip-render       - Skip final video rendering

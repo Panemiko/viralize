@@ -23,6 +23,6 @@ export async function analyzeVideoFace(videoFile) {
   const faceResult = await fs.readJsonSync(faceJson);
   const cut = calculateCuts(faceResult);
   
-  console.log(chalk.green(`  ✔ Face detection complete. Suggested vertical offset: ${cut.top}px`));
+  console.log(chalk.green(`  ✔ Face detection complete. Offset: top ${cut.top}px, left ${cut.left}px`));
   return cut;
 }

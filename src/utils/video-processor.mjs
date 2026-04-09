@@ -20,17 +20,10 @@ export async function renderFinalVideo({
 }) {
   console.log(chalk.cyan("  -> Configuring FFmpeg filter chain..."));
 
-  // Subtitle styling configuration (Viral look: Yellow, Bold)
-  const fontName = "Poppins";
-  const fontSize = 22;
-  const marginV = 300;
-
-  const subtitleStyle = `FontName=${fontName},FontSize=${fontSize},Bold=1,Alignment=2,MarginV=${marginV},PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=2,Shadow=1`;
-
-  let videoFilters = `scale=w=1080:h=1920,crop=1080:1920:0:${cut.top},lut3d=assets/filters/${filterName}.CUBE`;
+  let videoFilters = `scale=w=${cut.scaledWidth}:h=${cut.scaledHeight},crop=1080:1920:${cut.left}:${cut.top},lut3d=assets/filters/${filterName}.CUBE`;
 
   if (subtitleFile) {
-    videoFilters += `,subtitles='${subtitleFile}':force_style='${subtitleStyle}'`;
+    videoFilters += `,subtitles='${subtitleFile}'`;
   }
 
   const complexFilter = `
