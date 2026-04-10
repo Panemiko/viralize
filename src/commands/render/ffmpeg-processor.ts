@@ -1,71 +1,19 @@
 import { $ } from "zx";
-import logger from "../utils/logger.ts";
-import path from "node:path";
-import { ASSETS_DIR } from "../utils/paths.ts";
-import type { RenderParams, CutResult } from "../types.ts";
-
-/**
- * Renders the final video with crops, filters, and subtitles.
- * @param {object} params
- */
-export async function renderFinalVideo({
-  videoFile,
-  filterName,
-  subtitleFile,
-  cut,
-  outputName,
-  videoOutput = "videos/",
-  multibar,
-}: RenderParams) {
-  const videoFilters = buildVideoFilters(cut, filterName, subtitleFile);
-  const complexFilter = `
-    [0:v]${videoFilters}[v_final];
-    [0:a]arnndn=m=${path.resolve(ASSETS_DIR, "bd.rnnn")}:mix=0.9,loudnorm=I=-16:LRA=11:TP=-1.5 [a_final]
-  `;
-
-  const outputPath = path.resolve(process.cwd(), videoOutput, `${outputName}.mp4`);
-  await $`mkdir -p ${path.dirname(outputPath)}`;
-
-  try {
-    const duration = await getVideoDuration(videoFile);
-    await performRendering(videoFile, complexFilter, filterName, outputPath, duration, multibar as any);
-  } catch (err) {
-    logger.error({ err }, "Rendering failed");
-    throw err;
-  }
-}
+import logger from "../../common/logger.ts";
 
 /**
  * Gets video duration in seconds using ffprobe.
  */
-async function getVideoDuration(videoFile: string) {
+export async function getVideoDuration(videoFile: string) {
   const result =
     await $`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ${videoFile}`;
   return parseFloat(result.stdout.trim());
 }
 
 /**
- * Builds the FFmpeg video filter string.
- */
-function buildVideoFilters(
-  cut: CutResult,
-  filterName: string,
-  subtitleFile: string | null,
-) {
-  const filterPath = path.resolve(ASSETS_DIR, `filters/${filterName}.CUBE`);
-  let filters = `scale=w=${cut.scaledWidth}:h=${cut.scaledHeight},crop=1080:1920:${cut.left}:${cut.top},lut3d=${filterPath}`;
-
-  if (subtitleFile) {
-    filters += `,subtitles='${subtitleFile}'`;
-  }
-
-  return filters;
-}
-
-/**
  * Performs rendering with progress bar and fallback to software encoding.
  */
-async function performRendering(
+export async function performRendering(
   videoFile: string,
   complexFilter: string,
   filterName: string,

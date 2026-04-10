@@ -1,5 +1,7 @@
+export const command = "list";
+
 import path from "node:path";
-import type { GlobalContext } from "../types.ts";
+import type { GlobalContext } from "../../types.ts";
 
 /**
  * Lists available color filters.

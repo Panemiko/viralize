@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "type": "module",
   "description": "",
-  "main": "src/convert.ts",
+  "main": "src/index.ts",
   "private": true,
   "bin": {
-    "viralize": "./src/convert.ts"
+    "viralize": "./src/index.ts"
   },
   "scripts": {
     "setup": "npm install && python -m venv .venv && ./.venv/bin/pip install -r requirements.txt && mkdir -p videos tmp && bun link",
-    "start": "bun src/convert.ts",
-    "viralize": "bun src/convert.ts",
+    "start": "bun src/index.ts",
+    "viralize": "bun src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts"

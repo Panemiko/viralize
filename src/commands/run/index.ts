@@ -1,9 +1,10 @@
+export const command = "run";
+
 import path from "node:path";
-import { analyzeVideoFace } from "../steps/face-analysis.ts";
-import { generateSubtitles } from "../steps/transcription.ts";
-import { renderFinalVideo } from "../steps/video-processor.ts";
-import type { GlobalContext, RunArgs, ResolvedInputs, CutResult } from "../types.ts";
-import type { TerminalUI } from "../utils/ui.ts";
+import analyzeVideoFace from "../face-analysis/index.ts";
+import generateSubtitles from "../transcribe/index.ts";
+import renderFinalVideo from "../render/index.ts";
+import type { GlobalContext, RunArgs, ResolvedInputs, CutResult } from "../../types.ts";
 
 /**
  * Main execution flow for video conversion.
@@ -44,7 +45,6 @@ export default async function run(ctx: GlobalContext) {
       subtitleFile,
       cut,
       args.skipRender,
-      ui,
       ctx,
     );
     progress.update(100, { task: "Complete" });
@@ -104,7 +104,7 @@ async function handleSubtitleReview(
   videoFile: string,
   subtitleFile: string | null,
   args: RunArgs,
-  { logger, chalk, question, $, ui }: GlobalContext,
+  { logger, chalk, $, ui }: GlobalContext,
 ) {
   const shouldReview = subtitleFile && !args.skipRender && !args.skipReview;
   if (!shouldReview) return;
@@ -144,8 +144,7 @@ async function handleRendering(
   subtitleFile: string | null,
   cut: CutResult,
   skipRender: boolean | undefined,
-  ui: TerminalUI,
-  { logger }: GlobalContext,
+  { logger, ui }: GlobalContext,
 ) {
   if (skipRender) {
     logger.warn("Skipping video rendering.");

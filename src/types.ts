@@ -1,7 +1,7 @@
 import type { $ as ZX$, argv as ZXArgv, chalk as ZXChalk, fs as ZXFs, question as ZXQuestion } from "zx";
 export type { ZX$, ZXArgv, ZXChalk, ZXFs, ZXQuestion };
 import type { Logger } from "pino";
-import type { TerminalUI } from "./utils/ui.ts";
+import type { TerminalUI } from "./common/ui.ts";
 
 export interface GlobalContext {
   $: typeof ZX$;

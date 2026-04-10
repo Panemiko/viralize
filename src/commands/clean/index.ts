@@ -1,5 +1,7 @@
-import { INTERNAL_TEMP_DIR } from "../utils/paths.ts";
-import type { GlobalContext } from "../types.ts";
+export const command = "clean";
+
+import { INTERNAL_TEMP_DIR } from "../../common/paths.ts";
+import type { GlobalContext } from "../../types.ts";
 import path from "node:path";
 
 /**

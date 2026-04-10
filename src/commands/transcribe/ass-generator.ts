@@ -1,5 +1,5 @@
 import { fs } from "zx";
-import type { WhisperData, WhisperSegment, WhisperWord, SubtitleStyle } from "../types.ts";
+import type { WhisperData, WhisperSegment, WhisperWord, SubtitleStyle } from "../../types.ts";
 
 const MAX_WORDS_PER_LINE = 2; // Maximum 2 words per screen for high dynamism
 

@@ -1,9 +1,11 @@
+export const command = "transcribe";
+
 import { $, fs } from "zx";
-import { generateAssKaraoke } from "../utils/ass-generator.ts";
-import logger from "../utils/logger.ts";
 import path from "node:path";
-import { PROJECT_ROOT, INTERNAL_TEMP_DIR, ensureTempDir } from "../utils/paths.ts";
-import type { WhisperData, WhisperSegment, WhisperWord } from "../types.ts";
+import { PROJECT_ROOT, INTERNAL_TEMP_DIR, ensureTempDir } from "../../common/paths.ts";
+import logger from "../../common/logger.ts";
+import type { WhisperData, WhisperSegment, WhisperWord } from "../../types.ts";
+import { generateAssKaraoke } from "./ass-generator.ts";
 
 /**
  * Generates subtitles for a video file using Whisper.
@@ -11,7 +13,7 @@ import type { WhisperData, WhisperSegment, WhisperWord } from "../types.ts";
  * @param multibar CLI progress multibar.
  * @returns Path to the generated subtitle file.
  */
-export async function generateSubtitles(
+export default async function generateSubtitles(
   videoFile: string,
   multibar?: any,
 ) {
@@ -72,7 +74,7 @@ export async function generateSubtitles(
 }
 
 /**
- * Performs transcription with fallback to CPU if GPU fails.
+ * Performs transcription with fallback to GPU if GPU fails.
  */
 async function performTranscription(whisperCmd: string, whisperArgs: string[]) {
   try {

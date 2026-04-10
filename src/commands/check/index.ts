@@ -1,4 +1,6 @@
-import type { GlobalContext } from "../types.ts";
+export const command = "check";
+
+import type { GlobalContext } from "../../types.ts";
 
 /**
  * Checks system dependencies.

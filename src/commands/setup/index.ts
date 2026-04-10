@@ -1,4 +1,6 @@
-import type { GlobalContext } from "../types.ts";
+export const command = "setup";
+
+import type { GlobalContext } from "../../types.ts";
 
 /**
  * Runs the environment setup.

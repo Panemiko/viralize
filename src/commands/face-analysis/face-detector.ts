@@ -2,10 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import * as tf from "@tensorflow/tfjs-node";
 import * as faceapi_pkg from "@vladmandic/face-api";
-import { PROJECT_ROOT, INTERNAL_TEMP_DIR, ensureTempDir } from "./utils/paths.ts";
+import { PROJECT_ROOT, INTERNAL_TEMP_DIR, ensureTempDir } from "../../common/paths.ts";
 
 const faceapi = faceapi_pkg as any;
-const modelPathRoot = "models";
+const modelPathRoot = "src/models";
 
 let optionsSSDMobileNet: any;
 
@@ -31,7 +31,7 @@ async function searchFaceOnFile(file: Buffer) {
   await faceapi.tf.ENV.set("DEBUG", false);
   await faceapi.tf.ready();
 
-  const modelPath = path.join(PROJECT_ROOT, "src", modelPathRoot);
+  const modelPath = path.join(PROJECT_ROOT, modelPathRoot);
   await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath);
 
   optionsSSDMobileNet = new faceapi.SsdMobilenetv1Options({
