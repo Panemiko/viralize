@@ -12,13 +12,15 @@ import type { GlobalContext, RunArgs, ResolvedInputs, CutResult } from "../../ty
  */
 export default async function run(ctx: GlobalContext) {
   const { logger, argv, ui } = ctx;
-  const args = parseArgs(argv);
+  let args = parseArgs(argv);
 
   ui.log("🚀 Starting viralize Conversion Process");
-  console.time("Total execution time");
 
   try {
     const inputs = await resolveInputs(args, ctx);
+    args = await configureRunArgs(args, ui);
+
+    console.time("Total execution time");
     ui.log("Phase 0: Silence Removal");
 
     const jumpcutVideo = await handleJumpcut(
@@ -66,6 +68,56 @@ export default async function run(ctx: GlobalContext) {
   } finally {
     console.timeEnd("Total execution time");
   }
+}
+
+/**
+ * Configure modules to run based on user input.
+ */
+async function configureRunArgs(
+  args: RunArgs,
+  ui: GlobalContext["ui"],
+): Promise<RunArgs> {
+  // Check if any skip flags were already provided
+  const anySkipFlag =
+    args.skipJumpcut !== undefined ||
+    args.skipFace !== undefined ||
+    args.skipSubs !== undefined ||
+    args.skipReview !== undefined ||
+    args.skipRender !== undefined;
+
+  if (anySkipFlag) {
+    return args;
+  }
+
+  const options = [
+    { label: "Silence Removal (Jumpcut)", value: "skipJumpcut", checked: true },
+    { label: "Face Analysis", value: "skipFace", checked: true },
+    { label: "Transcription", value: "skipSubs", checked: true },
+    { label: "Review Subtitles", value: "skipReview", checked: false },
+    { label: "Video Rendering", value: "skipRender", checked: true },
+  ];
+
+  const selectedValues = await ui.multiSelect(
+    "Select modules to activate:",
+    options.map((o) => ({
+      label: o.label,
+      value: o.value,
+      checked: o.checked,
+    })),
+  );
+
+  const newArgs = { ...args };
+
+  // Set skip flags for those NOT selected
+  options.forEach((opt) => {
+    if (!selectedValues.includes(opt.value)) {
+      (newArgs as any)[opt.value] = true;
+    } else {
+      (newArgs as any)[opt.value] = false;
+    }
+  });
+
+  return newArgs;
 }
 
 /**
@@ -132,23 +184,12 @@ async function handleSubtitleReview(
   const shouldReview = subtitleFile && !args.skipRender && !args.skipReview;
   if (!shouldReview) return;
 
-  process.stdout.write(
-    chalk.yellow(
-      "\n❓ Do you want to review/revise the subtitles before rendering? (y/n): ",
-    ),
-  );
-  
-  const key = await ui.readKey();
-  process.stdout.write(key + "\n");
-  
-  if (!["y", "Y"].includes(key)) return;
-
   logger.info(`🎬 Opening MPV for review. Close MPV when finished.`);
   logger.info(`To edit the captions, open: ${subtitleFile}`);
 
   try {
-    await $`mpv ${videoFile} --sub-file=${subtitleFile} --autofit=70% --title="Subtitle Review - Close to continue"`;
-    
+    await $`mpv ${videoFile} --sub-file=${subtitleFile} --autofit=50% --title="Subtitle Review - Close to continue"`;
+
     process.stdout.write(
       chalk.yellow("\n▶ Press any key to continue to Phase 3 (Rendering)... "),
     );
