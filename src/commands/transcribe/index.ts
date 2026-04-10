@@ -15,12 +15,8 @@ import { generateAssKaraoke } from "./ass-generator.ts";
  */
 export default async function generateSubtitles(
   videoFile: string,
-  multibar?: any,
 ) {
   ensureTempDir();
-  const bar = multibar?.create(100, 0, {
-    task: "Transcription",
-  });
 
   const audioTemp = path.resolve(INTERNAL_TEMP_DIR, "audio_cut.wav");
   const jsonFile = path.resolve(INTERNAL_TEMP_DIR, "audio_cut.json");
@@ -28,7 +24,6 @@ export default async function generateSubtitles(
 
   // Extract mono audio for Whisper
   await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -vn -acodec pcm_s16le -ar 16000 -ac 1 ${audioTemp}`;
-  bar?.update(10);
 
   const venvWhisper = path.resolve(PROJECT_ROOT, ".venv/bin/whisper");
   const whisperCmd = fs.existsSync(venvWhisper) ? venvWhisper : "whisper";
@@ -52,9 +47,7 @@ export default async function generateSubtitles(
     "20",
   ];
 
-  bar?.update(20);
   await performTranscription(whisperCmd, whisperArgs);
-  bar?.update(80);
 
   if (fs.existsSync(jsonFile)) {
     const whisperData = JSON.parse(await fs.readFile(jsonFile, "utf-8"));
@@ -69,7 +62,6 @@ export default async function generateSubtitles(
     });
   }
 
-  bar?.update(100);
   return assFile;
 }
 

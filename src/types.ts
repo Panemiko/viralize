@@ -23,6 +23,7 @@ export interface RunArgs {
   skipSubs?: boolean;
   skipRender?: boolean;
   skipReview?: boolean;
+  skipJumpcut?: boolean;
   help?: boolean;
 }
 
@@ -45,7 +46,6 @@ export interface RenderParams extends ResolvedInputs {
   subtitleFile: string | null;
   cut: CutResult;
   videoOutput?: string;
-  multibar?: MultiBar;
 }
 
 export interface WhisperWord {

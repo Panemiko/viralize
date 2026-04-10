@@ -35,6 +35,11 @@ async function main() {
     [commands.clean.command]: commands.clean.default,
     [commands.check.command]: commands.check.default,
     [commands.run.command]: commands.run.default,
+    [commands.jumpcut.command]: async (ctx) => {
+      const videoFile = ctx.argv._[1] || ctx.argv.i || ctx.argv.input;
+      if (!videoFile) throw new Error("Missing video file. Usage: viralize jumpcut <video_path>");
+      return commands.jumpcut.default(videoFile, ctx);
+    },
     [commands.faceAnalysis.command]: async (ctx) => {
       const videoFile = ctx.argv._[1] || ctx.argv.i || ctx.argv.input;
       if (!videoFile) throw new Error("Missing video file. Usage: viralize face-analysis <video_path>");
@@ -43,7 +48,7 @@ async function main() {
     [commands.transcribe.command]: async (ctx) => {
       const videoFile = ctx.argv._[1] || ctx.argv.i || ctx.argv.input;
       if (!videoFile) throw new Error("Missing video file. Usage: viralize transcribe <video_path>");
-      return commands.transcribe.default(videoFile, ctx.ui.multibar);
+      return commands.transcribe.default(videoFile);
     },
     [commands.render.command]: async (ctx) => {
       // For direct render, we would need many args. For now, let's just warn or handle common ones.
@@ -56,7 +61,6 @@ async function main() {
         outputName: ctx.argv.o || ctx.argv.output || "output",
         subtitleFile: ctx.argv.s || ctx.argv.subtitle || null,
         cut: { top: 0, left: 0, scaledWidth: 1080, scaledHeight: 1920 }, // Default if not provided
-        multibar: ctx.ui.multibar as any,
       });
     },
   };
@@ -89,6 +93,7 @@ function showHelp() {
 
   ${chalk.bold("Subcommands:")}
     ${chalk.cyan("run")} [video]       - Run the full conversion process
+    ${chalk.cyan("jumpcut")} [v]       - Remove silences from video
     ${chalk.cyan("face-analysis")} [v] - Analyze faces in video
     ${chalk.cyan("transcribe")} [v]    - Generate subtitles for video
     ${chalk.cyan("render")}            - Render final video
@@ -102,6 +107,7 @@ function showHelp() {
     -f | --filter   ${chalk.gray("Name of the .CUBE filter to apply")}
     -o | --output   ${chalk.gray("Name of the output file")}
     -s | --subtitle ${chalk.gray("Use a manual .ass subtitle file")}
+    --skip-jumpcut  ${chalk.gray("Skip silence removal")}
     --skip-face     ${chalk.gray("Skip facial analysis")}
     --skip-subs     ${chalk.gray("Skip transcription")}
     --skip-review   ${chalk.gray("Skip interactive review")}

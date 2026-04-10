@@ -18,7 +18,6 @@ export default async function renderFinalVideo({
   cut,
   outputName,
   videoOutput = "videos/",
-  multibar,
 }: RenderParams) {
   const videoFilters = buildVideoFilters(cut, filterName, subtitleFile);
   const complexFilter = `
@@ -31,7 +30,7 @@ export default async function renderFinalVideo({
 
   try {
     const duration = await getVideoDuration(videoFile);
-    await performRendering(videoFile, complexFilter, filterName, outputPath, duration, multibar as any);
+    await performRendering(videoFile, complexFilter, filterName, outputPath, duration);
   } catch (err) {
     logger.error({ err }, "Rendering failed");
     throw err;

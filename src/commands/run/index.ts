@@ -1,6 +1,7 @@
 export const command = "run";
 
 import path from "node:path";
+import jumpcut from "../jumpcut/index.ts";
 import analyzeVideoFace from "../face-analysis/index.ts";
 import generateSubtitles from "../transcribe/index.ts";
 import renderFinalVideo from "../render/index.ts";
@@ -16,18 +17,25 @@ export default async function run(ctx: GlobalContext) {
   ui.log("🚀 Starting viralize Conversion Process");
   console.time("Total execution time");
 
-  const progress = ui.getBar("global", 100, "Overall Progress");
-
   try {
     const inputs = await resolveInputs(args, ctx);
-    progress.update(5, { task: "Phase 1: Face Analysis" });
+    ui.log("Phase 0: Silence Removal");
+
+    const jumpcutVideo = await handleJumpcut(
+      inputs.videoFile,
+      args.skipJumpcut,
+      ctx,
+    );
+    inputs.videoFile = jumpcutVideo;
+
+    ui.log("Phase 1: Face Analysis");
 
     const cut = await handleFaceAnalysis(
       inputs.videoFile,
       args.skipFace,
       ctx,
     );
-    progress.update(30, { task: "Phase 2: Transcription" });
+    ui.log("Phase 2: Transcription");
 
     const subtitleFile = await handleTranscription(
       inputs.videoFile,
@@ -35,10 +43,10 @@ export default async function run(ctx: GlobalContext) {
       args.skipSubs,
       ctx,
     );
-    progress.update(60, { task: "Wait: Subtitle Review" });
+    ui.log("Wait: Subtitle Review");
 
     await handleSubtitleReview(inputs.videoFile, subtitleFile, args, ctx);
-    progress.update(70, { task: "Phase 3: Rendering" });
+    ui.log("Phase 3: Rendering");
 
     await handleRendering(
       inputs,
@@ -47,7 +55,7 @@ export default async function run(ctx: GlobalContext) {
       args.skipRender,
       ctx,
     );
-    progress.update(100, { task: "Complete" });
+    ui.log("Complete");
 
     ui.stop();
     logger.info("✅ Process completed successfully!");
@@ -58,6 +66,21 @@ export default async function run(ctx: GlobalContext) {
   } finally {
     console.timeEnd("Total execution time");
   }
+}
+
+/**
+ * Handles the silence removal (jumpcut) phase.
+ */
+async function handleJumpcut(
+  videoFile: string,
+  skipJumpcut: boolean | undefined,
+  ctx: GlobalContext,
+) {
+  if (skipJumpcut) {
+    ctx.logger.warn("Skipping silence removal.");
+    return videoFile;
+  }
+  return await jumpcut(videoFile, ctx);
 }
 
 /**
@@ -94,7 +117,7 @@ async function handleTranscription(
     return null;
   }
 
-  return await generateSubtitles(videoFile, ui.multibar as any);
+  return await generateSubtitles(videoFile);
 }
 
 /**
@@ -155,7 +178,6 @@ async function handleRendering(
     ...inputs,
     subtitleFile,
     cut,
-    multibar: ui.multibar as any,
   });
 }
 
@@ -172,6 +194,7 @@ function parseArgs(argv: GlobalContext["argv"]): RunArgs {
     skipSubs: argv["skip-subs"],
     skipRender: argv["skip-render"],
     skipReview: argv["skip-review"],
+    skipJumpcut: argv["skip-jumpcut"],
     help: argv.h || argv.help,
   };
 }
