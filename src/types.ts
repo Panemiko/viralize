@@ -11,14 +11,19 @@ export interface GlobalContext {
   question: typeof ZXQuestion;
   logger: Logger;
   PROJECT_ROOT: string;
+  ASSETS_DIR: string;
+  INTERNAL_TEMP_DIR: string;
   ui: TerminalUI;
 }
 
 export interface RunArgs {
   input?: string;
+  audio?: string;
   filter?: string;
   output?: string;
   subtitle?: string;
+  skipSync?: boolean;
+  skipNoise?: boolean;
   skipFace?: boolean;
   skipSubs?: boolean;
   skipRender?: boolean;
@@ -29,6 +34,7 @@ export interface RunArgs {
 
 export interface ResolvedInputs {
   videoFile: string;
+  audioFile?: string;
   filterName: string;
   outputName: string;
 }

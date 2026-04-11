@@ -38,6 +38,10 @@ export async function performRendering(
       encoder,
       "-b:v",
       "5000k",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "192k",
     ];
 
     if (encoder === "h264_nvenc") {

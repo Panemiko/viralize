@@ -1,6 +1,6 @@
 export const command = "clean";
 
-import { INTERNAL_TEMP_DIR } from "../../common/paths.ts";
+import { INTERNAL_TEMP_DIR, ensureTempDir } from "../../common/paths.ts";
 import type { GlobalContext } from "../../types.ts";
 import path from "node:path";
 
@@ -19,6 +19,8 @@ export default async function clean({ fs, logger }: GlobalContext) {
     // Ensure .gitkeep survives
     const gitkeep = path.resolve(INTERNAL_TEMP_DIR, ".gitkeep");
     await fs.writeFile(gitkeep, "");
+
+    ensureTempDir();
     
     logger.info("✅ Cleaned successfully!");
   } catch (err) {

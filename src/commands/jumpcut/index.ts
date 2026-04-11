@@ -1,6 +1,6 @@
 import type { GlobalContext } from "../../types.ts";
 import path from "node:path";
-import { INTERNAL_TEMP_DIR, ensureTempDir } from "../../common/paths.ts";
+import { TEMP_JUMPCUT, ensureTempDir } from "../../common/paths.ts";
 
 export const command = "jumpcut";
 
@@ -76,7 +76,7 @@ export default async function jumpcut(videoFile: string, ctx: GlobalContext) {
   filterComplex += `${concatInputs}concat=n=${clips.length}:v=1:a=1[v_out][a_out]`;
   
   const outputFilename = `jumpcut_${path.basename(videoFile)}`;
-  const outputPath = path.resolve(INTERNAL_TEMP_DIR, outputFilename);
+  const outputPath = path.resolve(TEMP_JUMPCUT, outputFilename);
   
   logger.info(`✂️ Creating jumpcuts...`);
   

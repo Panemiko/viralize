@@ -2,7 +2,7 @@ export const command = "face-analysis";
 
 import { $, fs } from "zx";
 import path from "node:path";
-import { INTERNAL_TEMP_DIR } from "../../common/paths.ts";
+import { TEMP_FACE_ANALYSIS } from "../../common/paths.ts";
 import logger from "../../common/logger.ts";
 import type { CutResult } from "../../types.ts";
 import { calculateCuts } from "./calculate-cuts.ts";
@@ -13,8 +13,8 @@ import { calculateCuts } from "./calculate-cuts.ts";
 export default async function analyzeVideoFace(videoFile: string): Promise<CutResult> {
   logger.info("Extracting reference frame for face detection...");
 
-  const frameTemp = path.resolve(INTERNAL_TEMP_DIR, "frame.png");
-  const faceJson = path.resolve(INTERNAL_TEMP_DIR, "face.json");
+  const frameTemp = path.resolve(TEMP_FACE_ANALYSIS, "frame.png");
+  const faceJson = path.resolve(TEMP_FACE_ANALYSIS, "face.json");
   const detectionScript = path.resolve(__dirname, "face-detector.ts");
 
   try {

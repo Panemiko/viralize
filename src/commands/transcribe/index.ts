@@ -2,7 +2,7 @@ export const command = "transcribe";
 
 import { $, fs } from "zx";
 import path from "node:path";
-import { PROJECT_ROOT, INTERNAL_TEMP_DIR, ensureTempDir } from "../../common/paths.ts";
+import { PROJECT_ROOT, TEMP_TRANSCRIBE, ensureTempDir } from "../../common/paths.ts";
 import logger from "../../common/logger.ts";
 import type { WhisperData, WhisperSegment, WhisperWord } from "../../types.ts";
 import { generateAssKaraoke } from "./ass-generator.ts";
@@ -18,9 +18,9 @@ export default async function generateSubtitles(
 ) {
   ensureTempDir();
 
-  const audioTemp = path.resolve(INTERNAL_TEMP_DIR, "audio_cut.wav");
-  const jsonFile = path.resolve(INTERNAL_TEMP_DIR, "audio_cut.json");
-  const assFile = path.resolve(INTERNAL_TEMP_DIR, "audio_cut.ass");
+  const audioTemp = path.resolve(TEMP_TRANSCRIBE, "audio_cut.wav");
+  const jsonFile = path.resolve(TEMP_TRANSCRIBE, "audio_cut.json");
+  const assFile = path.resolve(TEMP_TRANSCRIBE, "audio_cut.ass");
 
   // Extract mono audio for Whisper
   await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -vn -acodec pcm_s16le -ar 16000 -ac 1 ${audioTemp}`;
@@ -36,7 +36,7 @@ export default async function generateSubtitles(
     "--language",
     "Portuguese",
     "--output_dir",
-    INTERNAL_TEMP_DIR,
+    TEMP_TRANSCRIBE,
     "--output_format",
     "json",
     "--word_timestamps",

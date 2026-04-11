@@ -22,7 +22,7 @@ export default async function renderFinalVideo({
   const videoFilters = buildVideoFilters(cut, filterName, subtitleFile);
   const complexFilter = `
     [0:v]${videoFilters}[v_final];
-    [0:a]arnndn=m=${path.resolve(ASSETS_DIR, "bd.rnnn")}:mix=0.9,loudnorm=I=-16:LRA=11:TP=-1.5 [a_final]
+    [0:a]anull [a_final]
   `;
 
   const outputPath = path.resolve(process.cwd(), videoOutput, `${outputName}.mp4`);

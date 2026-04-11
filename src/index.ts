@@ -4,7 +4,7 @@ import { $, argv, chalk, fs, question } from "zx";
 import * as commands from "./commands/index.ts";
 import type { GlobalContext } from "./types.ts";
 import logger from "./common/logger.ts";
-import { PROJECT_ROOT } from "./common/paths.ts";
+import { PROJECT_ROOT, ASSETS_DIR, INTERNAL_TEMP_DIR } from "./common/paths.ts";
 import { ui } from "./common/ui.ts";
 
 /**
@@ -26,6 +26,8 @@ async function main() {
     question,
     logger,
     PROJECT_ROOT,
+    ASSETS_DIR,
+    INTERNAL_TEMP_DIR,
     ui,
   };
 
@@ -104,9 +106,12 @@ function showHelp() {
 
   ${chalk.bold("Options for 'run':")}
     -i | --input    ${chalk.gray("Path of the video (optional if provided as positional)")}
+    -a | --audio    ${chalk.gray("Path of the external audio file to synchronize")}
     -f | --filter   ${chalk.gray("Name of the .CUBE filter to apply")}
     -o | --output   ${chalk.gray("Name of the output file")}
     -s | --subtitle ${chalk.gray("Use a manual .ass subtitle file")}
+    --skip-sync     ${chalk.gray("Skip audio synchronization")}
+    --skip-noise    ${chalk.gray("Skip noise removal")}
     --skip-jumpcut  ${chalk.gray("Skip silence removal")}
     --skip-face     ${chalk.gray("Skip facial analysis")}
     --skip-subs     ${chalk.gray("Skip transcription")}
