@@ -19,8 +19,8 @@ export default async function run(ctx: GlobalContext) {
   ensureTempDir();
 
   try {
-    const inputs = await resolveInputs(args, ctx);
     args = await configureRunArgs(args, ui);
+    const inputs = await resolveInputs(args, ctx);
 
     console.time("Total execution time");
 
@@ -93,6 +93,8 @@ async function configureRunArgs(
 ): Promise<RunArgs> {
   // Check if any skip flags were already provided
   const anySkipFlag =
+    args.skipSync !== undefined ||
+    args.skipNoise !== undefined ||
     args.skipJumpcut !== undefined ||
     args.skipFace !== undefined ||
     args.skipSubs !== undefined ||
@@ -105,8 +107,8 @@ async function configureRunArgs(
   }
 
   const options = [
-    { label: "Synchronization", value: "sync", checked: true },
-    { label: "Audio Enhancement", value: "noise", checked: true },
+    { label: "Synchronization", value: "skipSync", checked: true },
+    { label: "Audio Enhancement", value: "skipNoise", checked: true },
     { label: "Silence Removal (Jumpcut)", value: "skipJumpcut", checked: true },
     { label: "Face Analysis", value: "skipFace", checked: true },
     { label: "Slow Zoom", value: "skipZoom", checked: true },
@@ -357,31 +359,118 @@ function parseArgs(argv: GlobalContext["argv"]): RunArgs {
  */
 async function resolveInputs(
   args: RunArgs,
-  { logger, PROJECT_ROOT, question, fs }: GlobalContext,
+  { logger, PROJECT_ROOT, question, fs, ui }: GlobalContext,
 ): Promise<ResolvedInputs> {
-  const videoFile = args.input;
+  let videoFile = args.input;
   if (!videoFile) {
-    throw new Error("No input file specified. Usage: viralize run <video_path>");
+    const videoExtensions = [".mp4", ".mov", ".avi", ".mkv", ".webm"];
+    const videosPath = path.resolve(PROJECT_ROOT, "videos/");
+    const cwdPath = process.cwd();
+
+    const videoFiles: { label: string; value: string }[] = [];
+
+    // Search in videos/
+    if (fs.existsSync(videosPath)) {
+      const files = fs
+        .readdirSync(videosPath)
+        .filter(
+          (f: string) =>
+            !f.startsWith(".") &&
+            videoExtensions.some((ext) => f.toLowerCase().endsWith(ext)),
+        );
+      files.forEach((f: string) => {
+        videoFiles.push({
+          label: `[videos/] ${f}`,
+          value: path.resolve(videosPath, f),
+        });
+      });
+    }
+
+    // Search in process.cwd()
+    if (fs.existsSync(cwdPath)) {
+      const files = fs
+        .readdirSync(cwdPath)
+        .filter(
+          (f: string) =>
+            !f.startsWith(".") &&
+            videoExtensions.some((ext) => f.toLowerCase().endsWith(ext)),
+        );
+      files.forEach((f: string) => {
+        const fullPath = path.resolve(cwdPath, f);
+        // Avoid duplicates if videosPath is same as cwdPath
+        if (!videoFiles.some((vf) => vf.value === fullPath)) {
+          videoFiles.push({
+            label: `[cwd] ${f}`,
+            value: fullPath,
+          });
+        }
+      });
+    }
+
+    videoFiles.push({ label: "Custom path...", value: "__custom__" });
+
+    const selected = await ui.select(
+      "Choose a video to process:",
+      videoFiles,
+    );
+
+    if (selected === "__custom__") {
+      videoFile = await question("\nEnter the path for the input video: \n");
+    } else {
+      videoFile = selected;
+    }
+
+    if (!videoFile) {
+      throw new Error(
+        "No input file specified. Usage: viralize run <video_path>",
+      );
+    }
   }
 
-  const audioFile = args.audio ? path.resolve(args.audio) : undefined;
+  let audioFile = args.audio ? path.resolve(args.audio) : undefined;
+  if (!audioFile && !args.skipSync) {
+    const hasAudio =
+      (
+        await question(
+          "\nDo you have an external audio file to synchronize? (y/n): ",
+        )
+      ).toLowerCase() === "y";
+    if (hasAudio) {
+      audioFile = await question("Enter the path for the audio file: ");
+      if (audioFile) audioFile = path.resolve(audioFile);
+    }
+  }
 
-  let { filter: filterName, output: outputName } = args;
+  let filterName = args.filter;
 
   if (!filterName) {
     const filtersPath = path.resolve(PROJECT_ROOT, "assets/filters/");
-    const filters = fs.readdirSync(filtersPath).filter((f: string) => f.endsWith(".CUBE"));
-    logger.info("Available filters:");
-    filters.forEach((f: string) => console.log(` - ${f.replace(".CUBE", "")}`));
-    
-    filterName = await question(
-      "\nChoose a filter from the list above (without .CUBE extension): \n",
+    const filters = fs
+      .readdirSync(filtersPath)
+      .filter((f: string) => f.endsWith(".CUBE"));
+
+    filterName = await ui.select(
+      "Choose a color filter:",
+      filters.map((f: string) => ({
+        label: f.replace(".CUBE", ""),
+        value: f.replace(".CUBE", ""),
+      })),
     );
   }
 
+  let outputName = args.output;
   if (!outputName) {
     outputName = await question("\nEnter the name for the output file: \n");
   }
 
-  return { videoFile: path.resolve(videoFile), audioFile, filterName, outputName };
+  if (!outputName) {
+    outputName = "output_" + Date.now();
+  }
+
+  return {
+    videoFile: path.resolve(videoFile),
+    audioFile,
+    filterName: filterName!,
+    outputName: outputName!,
+  };
 }

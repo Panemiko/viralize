@@ -69,6 +69,69 @@ class ViralizeUI {
   }
 
   /**
+   * Simple select prompt.
+   */
+  async select<T>(
+    message: string,
+    options: { label: string; value: T }[],
+  ): Promise<T> {
+    const stdout = process.stdout;
+    const stdin = process.stdin;
+    let cursor = 0;
+
+    const render = () => {
+      stdout.write("\x1b[?25l"); // Hide cursor
+      stdout.write(`\n\r${message}\n\r`);
+      options.forEach((item, i) => {
+        const prefix = i === cursor ? "> " : "  ";
+        const color = i === cursor ? "\x1b[36m" : ""; // Cyan for current item
+        const reset = "\x1b[0m";
+        stdout.write(`${prefix}${color}${item.label}${reset}\n\r`);
+      });
+    };
+
+    const cleanup = () => {
+      stdout.write(`\x1b[${options.length + 2}A`); // Move cursor up
+      stdout.write("\x1b[0J"); // Clear
+      stdout.write("\x1b[?25h"); // Show cursor
+    };
+
+    render();
+
+    return new Promise((resolve) => {
+      stdin.setRawMode(true);
+      stdin.resume();
+      stdin.setEncoding("utf8");
+
+      const onData = (key: string) => {
+        if (key === "\u0003") {
+          cleanup();
+          process.exit();
+        }
+        if (key === "\r") {
+          stdin.setRawMode(false);
+          stdin.pause();
+          stdin.removeListener("data", onData);
+          cleanup();
+          resolve(options[cursor]!.value);
+        }
+        if (key === "\u001b[A") {
+          cursor = (cursor - 1 + options.length) % options.length;
+        }
+        if (key === "\u001b[B") {
+          cursor = (cursor + 1) % options.length;
+        }
+
+        stdout.write(`\x1b[${options.length + 2}A`);
+        stdout.write("\x1b[0J");
+        render();
+      };
+
+      stdin.on("data", onData);
+    });
+  }
+
+  /**
    * Simple multi-select prompt.
    */
   async multiSelect<T>(
@@ -121,7 +184,7 @@ class ViralizeUI {
         }
         if (key === " ") {
           // Space
-          items[cursor].checked = !items[cursor].checked;
+          items[cursor]!.checked = !items[cursor]!.checked;
         }
         if (key === "\u001b[A") {
           // Up arrow
