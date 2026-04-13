@@ -115,6 +115,7 @@ function showHelp() {
     --skip-jumpcut  ${chalk.gray("Skip silence removal")}
     --skip-face     ${chalk.gray("Skip facial analysis")}
     --skip-subs     ${chalk.gray("Skip transcription")}
+    --skip-zoom     ${chalk.gray("Skip slow zoom effect")}
     --skip-review   ${chalk.gray("Skip interactive review")}
     --skip-render   ${chalk.gray("Skip final video rendering")}
     -h | --help     ${chalk.gray("Show help message")}

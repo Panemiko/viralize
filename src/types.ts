@@ -29,6 +29,7 @@ export interface RunArgs {
   skipRender?: boolean;
   skipReview?: boolean;
   skipJumpcut?: boolean;
+  skipZoom?: boolean;
   help?: boolean;
 }
 

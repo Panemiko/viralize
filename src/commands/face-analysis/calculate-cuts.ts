@@ -33,8 +33,8 @@ export function calculateCuts(result: FaceDetectionResult[]): CutResult {
   const faceYCenterOrig = faceBox._y + faceBox._height / 2;
 
   // We want the face to be prominent but not too zoomed in.
-  // Target face width to be around 35% of the reel width.
-  const targetFaceWidth = reelsWidth * 0.35;
+  // Target face width to be around 25% of the reel width.
+  const targetFaceWidth = reelsWidth * 0.25;
   const faceScale = targetFaceWidth / faceBox._width;
 
   // Base scale to cover the 9:16 area

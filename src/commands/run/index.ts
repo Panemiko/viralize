@@ -30,22 +30,25 @@ export default async function run(ctx: GlobalContext) {
     ui.log("Phase 2: Audio Enhancement");
     inputs.videoFile = await handleNoiseRemoval(inputs.videoFile, args.skipNoise, ctx);
 
-    ui.log("Phase 3: Content Editing (Jumpcut)");
-
-    const jumpcutVideo = await handleJumpcut(
-      inputs.videoFile,
-      args.skipJumpcut,
-      ctx,
-    );
-    inputs.videoFile = jumpcutVideo;
-
-    ui.log("Phase 4: Visual Analysis (Face)");
+    ui.log("Phase 3: Visual Analysis (Face)");
 
     const cut = await handleFaceAnalysis(
       inputs.videoFile,
       args.skipFace,
       ctx,
     );
+
+    ui.log("Phase 4: Content Editing (Jumpcut)");
+
+    const jumpcutVideo = await handleJumpcut(
+      inputs.videoFile,
+      args.skipJumpcut,
+      args.skipZoom,
+      cut,
+      ctx,
+    );
+    inputs.videoFile = jumpcutVideo;
+
     ui.log("Phase 5: Subtitling (Transcription)");
 
     const subtitleFile = await handleTranscription(
@@ -64,6 +67,8 @@ export default async function run(ctx: GlobalContext) {
       subtitleFile,
       cut,
       args.skipRender,
+      args.skipZoom,
+      args.skipJumpcut,
       ctx,
     );
     ui.log("Complete");
@@ -92,7 +97,8 @@ async function configureRunArgs(
     args.skipFace !== undefined ||
     args.skipSubs !== undefined ||
     args.skipReview !== undefined ||
-    args.skipRender !== undefined;
+    args.skipRender !== undefined ||
+    args.skipZoom !== undefined;
 
   if (anySkipFlag) {
     return args;
@@ -103,6 +109,7 @@ async function configureRunArgs(
     { label: "Audio Enhancement", value: "noise", checked: true },
     { label: "Silence Removal (Jumpcut)", value: "skipJumpcut", checked: true },
     { label: "Face Analysis", value: "skipFace", checked: true },
+    { label: "Slow Zoom", value: "skipZoom", checked: true },
     { label: "Transcription", value: "skipSubs", checked: true },
     { label: "Review Subtitles", value: "skipReview", checked: false },
     { label: "Video Rendering", value: "skipRender", checked: true },
@@ -211,13 +218,15 @@ async function handleNoiseRemoval(
 async function handleJumpcut(
   videoFile: string,
   skipJumpcut: boolean | undefined,
+  skipZoom: boolean | undefined,
+  cut: CutResult,
   ctx: GlobalContext,
 ) {
   if (skipJumpcut) {
     ctx.logger.warn("Skipping silence removal.");
     return videoFile;
   }
-  return await jumpcut(videoFile, ctx);
+  return await jumpcut(videoFile, ctx, { skipZoom, cut });
 }
 
 /**
@@ -293,6 +302,8 @@ async function handleRendering(
   subtitleFile: string | null,
   cut: CutResult,
   skipRender: boolean | undefined,
+  skipZoom: boolean | undefined,
+  skipJumpcut: boolean | undefined,
   { logger, ui }: GlobalContext,
 ) {
   if (skipRender) {
@@ -300,11 +311,23 @@ async function handleRendering(
     return;
   }
 
+  // If jumpcut was not skipped, it already applied zoom and crop.
+  // If jumpcut was skipped, we should apply zoom here if not skipZoom.
+  const applyZoom = !skipZoom && !!skipJumpcut;
+  
+  // If jumpcut already cropped it, we don't want to crop again with original coordinates.
+  const finalCut = !skipJumpcut ? {
+    top: 0,
+    left: 0,
+    scaledWidth: 1080,
+    scaledHeight: 1920
+  } : cut;
+
   await renderFinalVideo({
     ...inputs,
     subtitleFile,
-    cut,
-  });
+    cut: finalCut,
+  }, applyZoom);
 }
 
 /**
@@ -324,6 +347,7 @@ function parseArgs(argv: GlobalContext["argv"]): RunArgs {
     skipRender: argv["skip-render"],
     skipReview: argv["skip-review"],
     skipJumpcut: argv["skip-jumpcut"],
+    skipZoom: argv["skip-zoom"],
     help: argv.h || argv.help,
   };
 }
