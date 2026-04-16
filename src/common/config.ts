@@ -55,19 +55,19 @@ export const DEFAULT_CONFIG: Config = {
     desiredYPercent: 0.3,
   },
   transcribe: {
-    model: "small",
+    model: "medium",
     language: "English",
   },
   subtitles: {
     fontName: "The Bold Font",
     fontSize: 90,
-    primaryColor: "&H00FFFFFF", // White
+    primaryColor: "&H00888888", // Darker Gray (Inactive)
     secondaryColor: "&H00FFFFFF",
-    highlightColor: "&H00FFFFFF", // White
+    highlightColor: "&H00FFFFFF", // Pure White (Active)
     outlineColor: "&H00000000",
     shadowColor: "&H00000000",
-    outlineWidth: 2,
-    shadowDepth: 0,
+    outlineWidth: 0,
+    shadowDepth: 2,
     alignment: 2,
     marginV: 600,
     bold: true,

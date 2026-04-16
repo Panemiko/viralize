@@ -33,7 +33,7 @@ export default async function generateSubtitles(
   const venvWhisper = path.resolve(PROJECT_ROOT, ".venv/bin/whisper");
   const whisperCmd = fs.existsSync(venvWhisper) ? venvWhisper : "whisper";
 
-  const { model, language } = ctx.config.transcribe || { model: "small", language: "English" };
+  const { model, language } = ctx.config.transcribe || { model: "medium", language: "English" };
 
   // Common options for karaoke style
   const whisperArgs = [
@@ -64,8 +64,9 @@ export default async function generateSubtitles(
     await generateAssKaraoke(whisperData, assFile, ctx?.config.subtitles || {
       fontName: "The Bold Font",
       fontSize: 90,
-      primaryColor: "&H00FFFFFF",
+      primaryColor: "&H00999999",
       secondaryColor: "&H00FFFFFF",
+      highlightColor: "&H00FFFFFF",
       marginV: 600,
     });
   }

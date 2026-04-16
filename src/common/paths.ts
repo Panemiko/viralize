@@ -61,7 +61,7 @@ export function ensureRunDirs(paths: RunPaths) {
 }
 
 /**
- * Cleans up old run directories, keeping only the 10 most recent.
+ * Cleans up old run directories, keeping only the 5 most recent.
  */
 export async function cleanupOldRuns() {
   const baseTempDir = getBaseTempDir();
@@ -78,10 +78,10 @@ export async function cleanupOldRuns() {
       }))
       .sort((a, b) => b.time - a.time); // Newest first
 
-    if (runDirs.length > 10) {
-      const toDelete = runDirs.slice(10);
+    if (runDirs.length > 5) {
+      const toDelete = runDirs.slice(5);
       for (const dir of toDelete) {
-        logger.debug(`Cleaning up old run directory: ${dir.path}`);
+        logger.info(`Cleaning up old run directory: ${dir.path}`);
         await fs.remove(dir.path);
       }
     }

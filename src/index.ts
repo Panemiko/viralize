@@ -31,7 +31,7 @@ async function main() {
   // Generate a unique ID for this run (Unix timestamp)
   const runId = Math.floor(Date.now() / 1000).toString();
 
-  // Cleanup old runs (keep only 10)
+  // Cleanup old runs (keep only 5)
   await cleanupOldRuns();
 
   const explicitConfigPath = argv.config as string | undefined;

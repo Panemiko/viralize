@@ -15,7 +15,7 @@ export async function generateAssKaraoke(
   const fontSize = style.fontSize || 90;
   const primaryColor = style.primaryColor || "&H00FFFFFF";
   const secondaryColor = style.secondaryColor || "&H00FFFFFF";
-  const highlightColor = style.highlightColor || "&H00D400FF";
+  const highlightColor = style.highlightColor || "&H00FFFFFF";
   const outlineColor = style.outlineColor || "&H00000000";
   const shadowColor = style.shadowColor || "&H00000000";
   const marginV = style.marginV || 600;
@@ -45,24 +45,42 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const start = formatTime(segment.start);
         const end = formatTime(segment.end);
         const text = segment.text.trim().toUpperCase();
-        // Simple pop for segments without word data
-        assContent += `Dialogue: 0,${start},${end},Default,,0,0,0,,{\\fscx70\\fscy70\\t(0,50,\\fscx120\\fscy120)\\t(50,150,\\fscx100\\fscy100)}${text}\n`;
+        // Simple display for segments without word data
+        assContent += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}\n`;
         continue;
       }
 
       const words = segment.words;
-      // Show 1-2 words at a time for high engagement "pop"
-      for (let i = 0; i < words.length; i += 1) {
-        const word = words[i];
-        const start = formatTime(word.start);
-        const end = formatTime(word.end);
-        const text = word.word.trim().toUpperCase();
-
-        // Animation: scale from 70% to 120% then to 100%
-        // We also apply the highlight color
-        const animation = `{\\1c${highlightColor}\\fscx70\\fscy70\\t(0,50,\\fscx120\\fscy120)\\t(50,150,\\fscx100\\fscy100)}`;
+      // Show 2 words at a time for high engagement
+      for (let i = 0; i < words.length; i += 2) {
+        const wordGroup = words.slice(i, i + 2);
         
-        assContent += `Dialogue: 0,${start},${end},Default,,0,0,0,,${animation}${text}\n`;
+        // Duration of this 2-word group
+        // But we still want to highlight each word individually within the group
+        for (let j = 0; j < wordGroup.length; j++) {
+          const activeWord = wordGroup[j];
+          const start = formatTime(activeWord.start);
+          const end = formatTime(activeWord.end);
+
+          let karaokeText = "";
+          for (let k = 0; k < wordGroup.length; k++) {
+            const w = wordGroup[k];
+            const text = w.word.trim().toUpperCase();
+            
+            if (k < j) {
+              // Words already spoken: White (highlightColor)
+              karaokeText += `{\\1c${highlightColor}}${text}{\\1c${primaryColor}} `;
+            } else if (k === j) {
+              // Currently spoken word: White (highlightColor)
+              karaokeText += `{\\1c${highlightColor}}${text}{\\1c${primaryColor}} `;
+            } else {
+              // Future words in this group: Gray (primaryColor)
+              karaokeText += `${text} `;
+            }
+          }
+          
+          assContent += `Dialogue: 0,${start},${end},Default,,0,0,0,,${karaokeText.trim()}\n`;
+        }
       }
     }
   }
