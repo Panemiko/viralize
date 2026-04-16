@@ -1,32 +1,56 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { fs } from "zx";
+import { PROJECT_ROOT, ASSETS_DIR, SHORTS_WIDTH, SHORTS_HEIGHT, GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_FILE } from "./constants.ts";
+import { getConfig } from "./config.ts";
+import type { RunPaths } from "../types.ts";
+import logger from "./logger.ts";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-export const PROJECT_ROOT = path.resolve(__dirname, "../..");
-export const ASSETS_DIR = path.resolve(PROJECT_ROOT, "assets");
-export const INTERNAL_TEMP_DIR = path.resolve(PROJECT_ROOT, "tmp");
-
-// Phase-specific temporary directories
-export const TEMP_FACE_ANALYSIS = path.resolve(INTERNAL_TEMP_DIR, "face-analysis");
-export const TEMP_TRANSCRIBE = path.resolve(INTERNAL_TEMP_DIR, "transcribe");
-export const TEMP_SYNC = path.resolve(INTERNAL_TEMP_DIR, "sync");
-export const TEMP_DENOISE = path.resolve(INTERNAL_TEMP_DIR, "denoise");
-export const TEMP_JUMPCUT = path.resolve(INTERNAL_TEMP_DIR, "jumpcut");
+export { PROJECT_ROOT, ASSETS_DIR, SHORTS_WIDTH, SHORTS_HEIGHT, GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_FILE };
+export { 
+  VIDEO_EXTENSIONS, 
+  AUDIO_EXTENSIONS,
+  AUDIO_SAMPLE_RATE,
+  AUDIO_CHANNELS,
+  AUDIO_CODEC,
+  AUDIO_BITRATE,
+  FACE_MIN_CONFIDENCE
+} from "./constants.ts";
 
 /**
- * Ensures the temporary directory and its subdirectories exist.
+ * Gets the base temporary directory from configuration.
  */
-export function ensureTempDir() {
+export function getBaseTempDir(): string {
+  return getConfig().tmpDir;
+}
+
+/**
+ * Calculates paths for a specific run.
+ */
+export function getRunPaths(runId: string): RunPaths {
+  const baseTempDir = getBaseTempDir();
+  const runDir = path.resolve(baseTempDir, runId);
+  
+  return {
+    runDir,
+    faceAnalysis: path.resolve(runDir, "face-analysis"),
+    transcribe: path.resolve(runDir, "transcribe"),
+    sync: path.resolve(runDir, "sync"),
+    denoise: path.resolve(runDir, "denoise"),
+    jumpcut: path.resolve(runDir, "jumpcut"),
+  };
+}
+
+/**
+ * Ensures the temporary directories for a specific run exist.
+ */
+export function ensureRunDirs(paths: RunPaths) {
   const dirs = [
-    INTERNAL_TEMP_DIR,
-    TEMP_FACE_ANALYSIS,
-    TEMP_TRANSCRIBE,
-    TEMP_SYNC,
-    TEMP_DENOISE,
-    TEMP_JUMPCUT,
+    paths.runDir,
+    paths.faceAnalysis,
+    paths.transcribe,
+    paths.sync,
+    paths.denoise,
+    paths.jumpcut,
   ];
 
   for (const dir of dirs) {
@@ -35,3 +59,36 @@ export function ensureTempDir() {
     }
   }
 }
+
+/**
+ * Cleans up old run directories, keeping only the 10 most recent.
+ */
+export async function cleanupOldRuns() {
+  const baseTempDir = getBaseTempDir();
+  if (!fs.existsSync(baseTempDir)) return;
+
+  try {
+    const entries = await fs.readdir(baseTempDir);
+    const runDirs = entries
+      .filter(name => /^\d+$/.test(name)) // Only numeric names (timestamps)
+      .map(name => ({
+        name,
+        path: path.resolve(baseTempDir, name),
+        time: parseInt(name, 10)
+      }))
+      .sort((a, b) => b.time - a.time); // Newest first
+
+    if (runDirs.length > 10) {
+      const toDelete = runDirs.slice(10);
+      for (const dir of toDelete) {
+        logger.debug(`Cleaning up old run directory: ${dir.path}`);
+        await fs.remove(dir.path);
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to cleanup old runs");
+  }
+}
+
+// Legacy export for compatibility during transition
+export const INTERNAL_TEMP_DIR = getBaseTempDir();

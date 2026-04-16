@@ -1,4 +1,5 @@
-import type { CutResult } from "../../types.ts";
+import type { CutResult, Config } from "../../types.ts";
+import { SHORTS_WIDTH, SHORTS_HEIGHT } from "../../common/constants.ts";
 
 export interface FaceDetectionResult {
   _imageDims: { _width: number; _height: number };
@@ -8,15 +9,18 @@ export interface FaceDetectionResult {
 /**
  * Calculates optimal crop coordinates from face detection results.
  */
-export function calculateCuts(result: FaceDetectionResult[]): CutResult {
-  const reelsWidth = 1080;
-  const reelsHeight = 1920;
+export function calculateCuts(
+  result: FaceDetectionResult[],
+  faceConfig?: Config["face"],
+): CutResult {
+  const targetWidthPercent = faceConfig?.targetWidthPercent ?? 0.25;
+  const desiredYPercent = faceConfig?.desiredYPercent ?? 0.3;
 
   const defaultCut = {
     top: 0,
     left: 0,
-    scaledWidth: reelsWidth,
-    scaledHeight: reelsHeight,
+    scaledWidth: SHORTS_WIDTH,
+    scaledHeight: SHORTS_HEIGHT,
   };
 
   if (!result || result.length === 0) {
@@ -33,25 +37,20 @@ export function calculateCuts(result: FaceDetectionResult[]): CutResult {
   const faceYCenterOrig = faceBox._y + faceBox._height / 2;
 
   // We want the face to be prominent but not too zoomed in.
-  // Target face width to be around 25% of the reel width.
-  const targetFaceWidth = reelsWidth * 0.25;
+  // Target face width to be around the configured percentage of the shorts width.
+  const targetFaceWidth = SHORTS_WIDTH * targetWidthPercent;
   const faceScale = targetFaceWidth / faceBox._width;
 
   // Base scale to cover the 9:16 area
   const baseScale = Math.max(
-    reelsWidth / originalWidth,
-    reelsHeight / originalHeight,
+    SHORTS_WIDTH / originalWidth,
+    SHORTS_HEIGHT / originalHeight,
   );
 
   // We also need to ensure the scale is high enough to allow the face to be
-  // at the desired vertical position (30% from top) without hitting boundaries.
-  // desiredYPercent = 0.3 means faceYCenter = reelsHeight * 0.3.
-  // faceYCenter = faceYCenterOrig * scale.
-  // To avoid clamping 'top' at 0, we need faceYCenter >= reelsHeight * 0.3.
-  // To avoid clamping 'top' at scaledHeight - reelsHeight, we need:
-  // faceYCenterOrig * scale - reelsHeight * 0.3 <= originalHeight * scale - reelsHeight
-  // scale * (originalHeight - faceYCenterOrig) >= reelsHeight * 0.7
-  const minScaleForVertical = (reelsHeight * 0.7) / (originalHeight - faceYCenterOrig);
+  // at the desired vertical position without hitting boundaries.
+  const minScaleForVertical =
+    (SHORTS_HEIGHT * (1 - desiredYPercent)) / (originalHeight - faceYCenterOrig);
 
   const scale = Math.max(baseScale, faceScale, minScaleForVertical);
 
@@ -61,14 +60,13 @@ export function calculateCuts(result: FaceDetectionResult[]): CutResult {
   const faceXCenter = faceXCenterOrig * scale;
   const faceYCenter = faceYCenterOrig * scale;
 
-  // Vertical position: face center at 30% from the top
-  const desiredYPercent = 0.3;
-  let top = faceYCenter - reelsHeight * desiredYPercent;
-  top = Math.max(0, Math.min(top, scaledHeight - reelsHeight));
+  // Vertical position: face center at desired percentage from the top
+  let top = faceYCenter - SHORTS_HEIGHT * desiredYPercent;
+  top = Math.max(0, Math.min(top, scaledHeight - SHORTS_HEIGHT));
 
   // Horizontal position: face center at 50% (middle)
-  let left = faceXCenter - reelsWidth / 2;
-  left = Math.max(0, Math.min(left, scaledWidth - reelsWidth));
+  let left = faceXCenter - SHORTS_WIDTH / 2;
+  left = Math.max(0, Math.min(left, scaledWidth - SHORTS_WIDTH));
 
   return {
     top: Math.round(top),

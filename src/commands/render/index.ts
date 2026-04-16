@@ -1,8 +1,8 @@
 export const command = "render";
 
-import { $ } from "zx";
+import { $, fs } from "zx";
 import path from "node:path";
-import { ASSETS_DIR } from "../../common/paths.ts";
+import { ASSETS_DIR, SHORTS_WIDTH, SHORTS_HEIGHT } from "../../common/paths.ts";
 import logger from "../../common/logger.ts";
 import type { RenderParams } from "../../types.ts";
 import { buildVideoFilters } from "./video-filters.ts";
@@ -21,7 +21,7 @@ export default async function renderFinalVideo(
     subtitleFile,
     cut,
     outputName,
-    videoOutput = "videos/",
+    originalVideoPath,
   } = params;
 
   const duration = await getVideoDuration(videoFile);
@@ -45,11 +45,23 @@ export default async function renderFinalVideo(
     [0:a]anull [a_final]
   `;
 
-  const outputPath = path.resolve(process.cwd(), videoOutput, `${outputName}.mp4`);
-  await $`mkdir -p ${path.dirname(outputPath)}`;
+  const outputDir = path.resolve(process.cwd(), outputName);
+  const outputPath = path.resolve(outputDir, `${outputName}.mp4`);
+  
+  // Ensure the output directory exists
+  await $`mkdir -p ${outputDir}`;
 
   try {
     await performRendering(videoFile, complexFilter, filterName, outputPath, duration);
+
+    // Copy original video to the export folder
+    const sourcePath = originalVideoPath || videoFile;
+    if (fs.existsSync(sourcePath)) {
+      const originalFileName = path.basename(sourcePath);
+      const targetPath = path.resolve(outputDir, `original-${originalFileName}`);
+      logger.info(`Copying original video to: ${targetPath}`);
+      await fs.copy(sourcePath, targetPath, { overwrite: true });
+    }
   } catch (err) {
     logger.error({ err }, "Rendering failed");
     throw err;

@@ -2,25 +2,30 @@ export const command = "transcribe";
 
 import { $, fs } from "zx";
 import path from "node:path";
-import { PROJECT_ROOT, TEMP_TRANSCRIBE, ensureTempDir } from "../../common/paths.ts";
+import { 
+  PROJECT_ROOT, 
+  ensureRunDirs 
+} from "../../common/paths.ts";
 import logger from "../../common/logger.ts";
-import type { WhisperData, WhisperSegment, WhisperWord } from "../../types.ts";
+import type { WhisperData, WhisperSegment, WhisperWord, GlobalContext } from "../../types.ts";
 import { generateAssKaraoke } from "./ass-generator.ts";
 
 /**
  * Generates subtitles for a video file using Whisper.
  * @param videoFile Path to the input video file.
- * @param multibar CLI progress multibar.
+ * @param ctx Global configuration context.
  * @returns Path to the generated subtitle file.
  */
 export default async function generateSubtitles(
   videoFile: string,
+  ctx: GlobalContext,
 ) {
-  ensureTempDir();
+  const { $, fs, paths } = ctx;
+  ensureRunDirs(paths);
 
-  const audioTemp = path.resolve(TEMP_TRANSCRIBE, "audio_cut.wav");
-  const jsonFile = path.resolve(TEMP_TRANSCRIBE, "audio_cut.json");
-  const assFile = path.resolve(TEMP_TRANSCRIBE, "audio_cut.ass");
+  const audioTemp = path.resolve(paths.transcribe, "audio_cut.wav");
+  const jsonFile = path.resolve(paths.transcribe, "audio_cut.json");
+  const assFile = path.resolve(paths.transcribe, "audio_cut.ass");
 
   // Extract mono audio for Whisper
   await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -vn -acodec pcm_s16le -ar 16000 -ac 1 ${audioTemp}`;
@@ -28,17 +33,20 @@ export default async function generateSubtitles(
   const venvWhisper = path.resolve(PROJECT_ROOT, ".venv/bin/whisper");
   const whisperCmd = fs.existsSync(venvWhisper) ? venvWhisper : "whisper";
 
+  const { model, language } = ctx.config.transcribe || { model: "small", language: "English" };
+
   // Common options for karaoke style
   const whisperArgs = [
     audioTemp,
     "--model",
-    "small",
+    model,
     "--language",
-    "Portuguese",
+    language,
     "--output_dir",
-    TEMP_TRANSCRIBE,
+    paths.transcribe,
     "--output_format",
     "json",
+
     "--word_timestamps",
     "True",
     "--max_line_count",
@@ -53,10 +61,10 @@ export default async function generateSubtitles(
     const whisperData = JSON.parse(await fs.readFile(jsonFile, "utf-8"));
     processWhisperData(whisperData);
 
-    await generateAssKaraoke(whisperData, assFile, {
+    await generateAssKaraoke(whisperData, assFile, ctx?.config.subtitles || {
       fontName: "The Bold Font",
       fontSize: 90,
-      primaryColor: "&H00D400FF",
+      primaryColor: "&H00FFFFFF",
       secondaryColor: "&H00FFFFFF",
       marginV: 600,
     });

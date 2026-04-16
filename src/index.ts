@@ -4,7 +4,17 @@ import { $, argv, chalk, fs, question } from "zx";
 import * as commands from "./commands/index.ts";
 import type { GlobalContext } from "./types.ts";
 import logger from "./common/logger.ts";
-import { PROJECT_ROOT, ASSETS_DIR, INTERNAL_TEMP_DIR } from "./common/paths.ts";
+import { 
+  PROJECT_ROOT, 
+  ASSETS_DIR, 
+  GLOBAL_CONFIG_DIR, 
+  GLOBAL_CONFIG_FILE,
+  getRunPaths,
+  cleanupOldRuns,
+  ensureRunDirs,
+  getBaseTempDir
+} from "./common/paths.ts";
+import { getConfig } from "./common/config.ts";
 import { ui } from "./common/ui.ts";
 
 /**
@@ -18,6 +28,18 @@ async function main() {
     return;
   }
 
+  // Generate a unique ID for this run (Unix timestamp)
+  const runId = Math.floor(Date.now() / 1000).toString();
+
+  // Cleanup old runs (keep only 10)
+  await cleanupOldRuns();
+
+  const explicitConfigPath = argv.config as string | undefined;
+  const config = getConfig(explicitConfigPath);
+
+  // Initialize run-specific paths
+  const runPaths = getRunPaths(runId);
+
   const ctx: GlobalContext = {
     $,
     argv,
@@ -27,13 +49,22 @@ async function main() {
     logger,
     PROJECT_ROOT,
     ASSETS_DIR,
-    INTERNAL_TEMP_DIR,
+    INTERNAL_TEMP_DIR: getBaseTempDir(),
+    GLOBAL_CONFIG_DIR,
+    GLOBAL_CONFIG_FILE,
+    config,
     ui,
+    runId,
+    paths: runPaths,
   };
+
+  logger.debug(`Starting run ${runId} in ${runPaths.runDir}`);
+
 
   const subCommandMap: Record<string, (ctx: GlobalContext) => Promise<any>> = {
     [commands.list.command]: commands.list.default,
     [commands.setup.command]: commands.setup.default,
+    [commands.generateConfig.command]: commands.generateConfig.default,
     [commands.clean.command]: commands.clean.default,
     [commands.check.command]: commands.check.default,
     [commands.run.command]: commands.run.default,
@@ -45,22 +76,23 @@ async function main() {
     [commands.faceAnalysis.command]: async (ctx) => {
       const videoFile = ctx.argv._[1] || ctx.argv.i || ctx.argv.input;
       if (!videoFile) throw new Error("Missing video file. Usage: viralize face-analysis <video_path>");
-      return commands.faceAnalysis.default(videoFile);
+      return commands.faceAnalysis.default(videoFile, ctx);
     },
     [commands.transcribe.command]: async (ctx) => {
       const videoFile = ctx.argv._[1] || ctx.argv.i || ctx.argv.input;
       if (!videoFile) throw new Error("Missing video file. Usage: viralize transcribe <video_path>");
-      return commands.transcribe.default(videoFile);
+      return commands.transcribe.default(videoFile, ctx);
     },
     [commands.render.command]: async (ctx) => {
-      // For direct render, we would need many args. For now, let's just warn or handle common ones.
       const videoFile = ctx.argv._[1] || ctx.argv.i || ctx.argv.input;
       if (!videoFile) throw new Error("Missing video file. Usage: viralize render <video_path> [options]");
+      
+      const outputName = ctx.argv.o || ctx.argv.output || "output_" + Date.now();
       
       return commands.render.default({
         videoFile: videoFile,
         filterName: ctx.argv.f || ctx.argv.filter || "none",
-        outputName: ctx.argv.o || ctx.argv.output || "output",
+        outputName: outputName,
         subtitleFile: ctx.argv.s || ctx.argv.subtitle || null,
         cut: { top: 0, left: 0, scaledWidth: 1080, scaledHeight: 1920 }, // Default if not provided
       });
@@ -88,7 +120,7 @@ async function main() {
  */
 function showHelp() {
   console.log(`
-  ${chalk.bold.magenta("viralize")} - Automatic Video to Reels Converter
+  ${chalk.bold.magenta("viralize")} - Automatic Video to Shorts Converter
 
   ${chalk.bold("Usage:")}
     viralize <subcommand> [options]
@@ -102,7 +134,11 @@ function showHelp() {
     ${chalk.cyan("list")}              - List available color filters (LUTs)
     ${chalk.cyan("check")}             - Check system dependencies
     ${chalk.cyan("setup")}             - Initialize project dependencies
+    ${chalk.cyan("generate-config")}   - Create a local viralize.config.json in CWD
     ${chalk.cyan("clean")}             - Remove temporary files
+
+  ${chalk.bold("Global Options:")}
+    --config <path> ${chalk.gray("Path to a custom configuration file")}
 
   ${chalk.bold("Options for 'run':")}
     -i | --input    ${chalk.gray("Path of the video (optional if provided as positional)")}

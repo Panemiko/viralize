@@ -1,6 +1,6 @@
 export const command = "clean";
 
-import { INTERNAL_TEMP_DIR, ensureTempDir } from "../../common/paths.ts";
+import { getBaseTempDir } from "../../common/paths.ts";
 import type { GlobalContext } from "../../types.ts";
 import path from "node:path";
 
@@ -8,20 +8,19 @@ import path from "node:path";
  * Cleans temporary files.
  */
 export default async function clean({ fs, logger }: GlobalContext) {
-  logger.info(`🧹 Cleaning temporary files in: ${INTERNAL_TEMP_DIR}`);
+  const baseTempDir = getBaseTempDir();
+  logger.info(`🧹 Cleaning all temporary files in: ${baseTempDir}`);
   try {
-    if (fs.existsSync(INTERNAL_TEMP_DIR)) {
-      await fs.emptyDir(INTERNAL_TEMP_DIR);
+    if (fs.existsSync(baseTempDir)) {
+      await fs.emptyDir(baseTempDir);
     } else {
-      await fs.mkdirp(INTERNAL_TEMP_DIR);
+      await fs.mkdirp(baseTempDir);
     }
     
     // Ensure .gitkeep survives
-    const gitkeep = path.resolve(INTERNAL_TEMP_DIR, ".gitkeep");
+    const gitkeep = path.resolve(baseTempDir, ".gitkeep");
     await fs.writeFile(gitkeep, "");
 
-    ensureTempDir();
-    
     logger.info("✅ Cleaned successfully!");
   } catch (err) {
     logger.error({ err }, "❌ Failed to clean temporary files.");

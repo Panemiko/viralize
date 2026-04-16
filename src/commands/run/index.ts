@@ -6,21 +6,33 @@ import analyzeVideoFace from "../face-analysis/index.ts";
 import generateSubtitles from "../transcribe/index.ts";
 import renderFinalVideo from "../render/index.ts";
 import type { GlobalContext, RunArgs, ResolvedInputs, CutResult } from "../../types.ts";
-import { PROJECT_ROOT, ensureTempDir, ASSETS_DIR, TEMP_SYNC, TEMP_DENOISE } from "../../common/paths.ts";
+import { 
+  PROJECT_ROOT, 
+  ensureRunDirs, 
+  ASSETS_DIR, 
+  VIDEO_EXTENSIONS,
+  AUDIO_EXTENSIONS,
+  SHORTS_WIDTH,
+  SHORTS_HEIGHT,
+  AUDIO_CODEC,
+  AUDIO_BITRATE,
+  AUDIO_SAMPLE_RATE
+} from "../../common/paths.ts";
 
 /**
  * Main execution flow for video conversion.
  */
 export default async function run(ctx: GlobalContext) {
-  const { logger, argv, ui } = ctx;
+  const { logger, argv, ui, paths } = ctx;
   let args = parseArgs(argv);
 
   ui.log("🚀 Starting viralize Conversion Process");
-  ensureTempDir();
+  ensureRunDirs(paths);
 
   try {
     args = await configureRunArgs(args, ui);
     const inputs = await resolveInputs(args, ctx);
+    const originalVideoPath = inputs.videoFile;
 
     console.time("Total execution time");
 
@@ -70,6 +82,7 @@ export default async function run(ctx: GlobalContext) {
       args.skipZoom,
       args.skipJumpcut,
       ctx,
+      originalVideoPath,
     );
     ui.log("Complete");
 
@@ -146,8 +159,9 @@ async function configureRunArgs(
 async function handleAudioSync(
   inputs: ResolvedInputs,
   skipSync: boolean | undefined,
-  { $, fs, logger, PROJECT_ROOT }: GlobalContext,
+  ctx: GlobalContext,
 ): Promise<string> {
+  const { $, fs, logger, PROJECT_ROOT, paths } = ctx;
   const { videoFile, audioFile } = inputs;
   if (!audioFile || skipSync) {
     if (skipSync) logger.warn("Skipping synchronization.");
@@ -157,15 +171,15 @@ async function handleAudioSync(
 
   logger.info(`🎵 Synchronizing audio: ${audioFile} with video: ${videoFile}`);
 
-  const tempOrigAudio = path.resolve(TEMP_SYNC, "orig_audio.raw");
-  const tempExtAudio = path.resolve(TEMP_SYNC, "ext_audio.raw");
+  const tempOrigAudio = path.resolve(paths.sync, "orig_audio.raw");
+  const tempExtAudio = path.resolve(paths.sync, "ext_audio.raw");
   const syncScript = path.resolve(PROJECT_ROOT, "src/commands/run/sync_audio.py");
   const venvPython = path.resolve(PROJECT_ROOT, ".venv/bin/python");
   const pythonPath = fs.existsSync(venvPython) ? venvPython : "python3";
 
-  // 1. Extract audio from video and convert external audio to raw mono 16kHz
-  await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -vn -f s16le -ac 1 -ar 16000 ${tempOrigAudio}`;
-  await $`ffmpeg -hide_banner -loglevel error -y -i ${audioFile} -f s16le -ac 1 -ar 16000 ${tempExtAudio}`;
+  // 1. Extract audio from video and convert external audio to raw mono at constant sample rate
+  await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -vn -f s16le -ac 1 -ar ${AUDIO_SAMPLE_RATE} ${tempOrigAudio}`;
+  await $`ffmpeg -hide_banner -loglevel error -y -i ${audioFile} -f s16le -ac 1 -ar ${AUDIO_SAMPLE_RATE} ${tempExtAudio}`;
 
   // 2. Find offset using Python script
   const offsetResult = await $`${pythonPath} ${syncScript} ${tempOrigAudio} ${tempExtAudio}`;
@@ -173,20 +187,16 @@ async function handleAudioSync(
   logger.info(`Detected audio offset: ${offset.toFixed(4)}s`);
 
   // 3. Combine/Replace audio
-  const syncedVideo = path.resolve(TEMP_SYNC, `synced_${path.basename(videoFile)}`);
+  const syncedVideo = path.resolve(paths.sync, `synced_${path.basename(videoFile)}`);
 
-  // If offset > 0, the external audio starts AFTER the video audio (delayed). We need to delay external audio further to match? No.
-  // If max_idx is positive, it means ref[k] = target[0]. So target started later.
-  // We need to delay target by k.
-  
   if (offset < 0) {
     // External audio starts BEFORE video. Trim the beginning of external audio.
     const trimStart = Math.abs(offset);
-    await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -i ${audioFile} -filter_complex "[1:a]atrim=start=${trimStart},asetpts=PTS-STARTPTS[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -shortest ${syncedVideo}`;
+    await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -i ${audioFile} -filter_complex "[1:a]atrim=start=${trimStart},asetpts=PTS-STARTPTS[a]" -map 0:v -map "[a]" -c:v copy -c:a ${AUDIO_CODEC} -b:a ${AUDIO_BITRATE} -shortest ${syncedVideo}`;
   } else {
     // External audio starts AFTER video. Delay the external audio.
     const delayMs = Math.abs(offset) * 1000;
-    await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -i ${audioFile} -filter_complex "[1:a]adelay=${delayMs}|${delayMs},asetpts=PTS-STARTPTS[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -shortest ${syncedVideo}`;
+    await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -i ${audioFile} -filter_complex "[1:a]adelay=${delayMs}|${delayMs},asetpts=PTS-STARTPTS[a]" -map 0:v -map "[a]" -c:v copy -c:a ${AUDIO_CODEC} -b:a ${AUDIO_BITRATE} -shortest ${syncedVideo}`;
   }
 
   return syncedVideo;
@@ -198,18 +208,19 @@ async function handleAudioSync(
 async function handleNoiseRemoval(
   videoFile: string,
   skipNoise: boolean | undefined,
-  { $, logger, ASSETS_DIR }: GlobalContext,
+  ctx: GlobalContext,
 ): Promise<string> {
+  const { $, logger, ASSETS_DIR, paths } = ctx;
   if (skipNoise) {
     logger.warn("Skipping noise removal.");
     return videoFile;
   }
   logger.info(`🧹 Removing noise from video: ${videoFile}`);
 
-  const noiseFreeVideo = path.resolve(TEMP_DENOISE, `denoised_${path.basename(videoFile)}`);
+  const noiseFreeVideo = path.resolve(paths.denoise, `denoised_${path.basename(videoFile)}`);
   const rnnModel = path.resolve(ASSETS_DIR, "bd.rnnn");
 
-  await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -af "arnndn=m=${rnnModel}:mix=0.9,loudnorm=I=-16:LRA=11:TP=-1.5" -c:v copy -c:a aac -b:a 192k ${noiseFreeVideo}`;
+  await $`ffmpeg -hide_banner -loglevel error -y -i ${videoFile} -af "arnndn=m=${rnnModel}:mix=0.9,loudnorm=I=-16:LRA=11:TP=-1.5" -c:v copy -c:a ${AUDIO_CODEC} -b:a ${AUDIO_BITRATE} ${noiseFreeVideo}`;
 
   return noiseFreeVideo;
 }
@@ -237,13 +248,13 @@ async function handleJumpcut(
 async function handleFaceAnalysis(
   videoFile: string,
   skipFace: boolean | undefined,
-  { logger }: GlobalContext,
+  ctx: GlobalContext,
 ) {
   if (skipFace) {
-    logger.warn("Skipping face analysis. Using default centering.");
-    return { top: 0, left: 0, scaledWidth: 1080, scaledHeight: 1920 };
+    ctx.logger.warn("Skipping face analysis. Using default centering.");
+    return { top: 0, left: 0, scaledWidth: SHORTS_WIDTH, scaledHeight: SHORTS_HEIGHT };
   }
-  return await analyzeVideoFace(videoFile);
+  return await analyzeVideoFace(videoFile, ctx);
 }
 
 /**
@@ -253,8 +264,9 @@ async function handleTranscription(
   videoFile: string,
   manualSubtitle: string | undefined,
   skipSubs: boolean | undefined,
-  { logger, ui }: GlobalContext,
+  ctx: GlobalContext,
 ) {
+  const { logger } = ctx;
   if (manualSubtitle) {
     logger.info(`Using manual subtitle file: ${manualSubtitle}`);
     return manualSubtitle;
@@ -265,7 +277,7 @@ async function handleTranscription(
     return null;
   }
 
-  return await generateSubtitles(videoFile);
+  return await generateSubtitles(videoFile, ctx);
 }
 
 /**
@@ -307,6 +319,7 @@ async function handleRendering(
   skipZoom: boolean | undefined,
   skipJumpcut: boolean | undefined,
   { logger, ui }: GlobalContext,
+  originalVideoPath: string,
 ) {
   if (skipRender) {
     logger.warn("Skipping video rendering.");
@@ -321,14 +334,15 @@ async function handleRendering(
   const finalCut = !skipJumpcut ? {
     top: 0,
     left: 0,
-    scaledWidth: 1080,
-    scaledHeight: 1920
+    scaledWidth: SHORTS_WIDTH,
+    scaledHeight: SHORTS_HEIGHT
   } : cut;
 
   await renderFinalVideo({
     ...inputs,
     subtitleFile,
     cut: finalCut,
+    originalVideoPath,
   }, applyZoom);
 }
 
@@ -359,51 +373,29 @@ function parseArgs(argv: GlobalContext["argv"]): RunArgs {
  */
 async function resolveInputs(
   args: RunArgs,
-  { logger, PROJECT_ROOT, question, fs, ui }: GlobalContext,
+  { logger, PROJECT_ROOT, ASSETS_DIR, question, fs, ui }: GlobalContext,
 ): Promise<ResolvedInputs> {
   let videoFile = args.input;
   if (!videoFile) {
-    const videoExtensions = [".mp4", ".mov", ".avi", ".mkv", ".webm"];
-    const videosPath = path.resolve(PROJECT_ROOT, "videos/");
     const cwdPath = process.cwd();
 
     const videoFiles: { label: string; value: string }[] = [];
 
-    // Search in videos/
-    if (fs.existsSync(videosPath)) {
-      const files = fs
-        .readdirSync(videosPath)
-        .filter(
-          (f: string) =>
-            !f.startsWith(".") &&
-            videoExtensions.some((ext) => f.toLowerCase().endsWith(ext)),
-        );
-      files.forEach((f: string) => {
-        videoFiles.push({
-          label: `[videos/] ${f}`,
-          value: path.resolve(videosPath, f),
-        });
-      });
-    }
-
-    // Search in process.cwd()
+    // Search ONLY in process.cwd()
     if (fs.existsSync(cwdPath)) {
       const files = fs
         .readdirSync(cwdPath)
         .filter(
           (f: string) =>
             !f.startsWith(".") &&
-            videoExtensions.some((ext) => f.toLowerCase().endsWith(ext)),
+            VIDEO_EXTENSIONS.some((ext) => f.toLowerCase().endsWith(ext)),
         );
       files.forEach((f: string) => {
         const fullPath = path.resolve(cwdPath, f);
-        // Avoid duplicates if videosPath is same as cwdPath
-        if (!videoFiles.some((vf) => vf.value === fullPath)) {
-          videoFiles.push({
-            label: `[cwd] ${f}`,
-            value: fullPath,
-          });
-        }
+        videoFiles.push({
+          label: f,
+          value: fullPath,
+        });
       });
     }
 
@@ -429,32 +421,67 @@ async function resolveInputs(
 
   let audioFile = args.audio ? path.resolve(args.audio) : undefined;
   if (!audioFile && !args.skipSync) {
-    const hasAudio =
-      (
-        await question(
-          "\nDo you have an external audio file to synchronize? (y/n): ",
-        )
-      ).toLowerCase() === "y";
-    if (hasAudio) {
-      audioFile = await question("Enter the path for the audio file: ");
-      if (audioFile) audioFile = path.resolve(audioFile);
+    const cwdPath = process.cwd();
+    const audioFiles: { label: string; value: string }[] = [];
+
+    // Search ONLY in process.cwd()
+    if (fs.existsSync(cwdPath)) {
+      const files = fs
+        .readdirSync(cwdPath)
+        .filter(
+          (f: string) =>
+            !f.startsWith(".") &&
+            AUDIO_EXTENSIONS.some((ext) => f.toLowerCase().endsWith(ext)),
+        );
+      files.forEach((f: string) => {
+        const fullPath = path.resolve(cwdPath, f);
+        audioFiles.push({
+          label: f,
+          value: fullPath,
+        });
+      });
+    }
+
+    if (audioFiles.length > 0 || args.audio === undefined) {
+      const audioOptions = [
+        { label: "None (Skip Sync)", value: "__none__" },
+        ...audioFiles,
+        { label: "Custom path...", value: "__custom__" },
+      ];
+
+      const selectedAudio = await ui.select(
+        "Choose an audio file to synchronize (optional):",
+        audioOptions,
+      );
+
+      if (selectedAudio === "__none__") {
+        audioFile = undefined;
+      } else if (selectedAudio === "__custom__") {
+        const customPath = await question("\nEnter the path for the audio file: \n");
+        if (customPath) audioFile = path.resolve(customPath);
+      } else {
+        audioFile = selectedAudio;
+      }
     }
   }
 
   let filterName = args.filter;
 
   if (!filterName) {
-    const filtersPath = path.resolve(PROJECT_ROOT, "assets/filters/");
+    const filtersPath = path.resolve(ASSETS_DIR, "filters/");
     const filters = fs
       .readdirSync(filtersPath)
       .filter((f: string) => f.endsWith(".CUBE"));
 
     filterName = await ui.select(
       "Choose a color filter:",
-      filters.map((f: string) => ({
-        label: f.replace(".CUBE", ""),
-        value: f.replace(".CUBE", ""),
-      })),
+      [
+        { label: "None", value: "none" },
+        ...filters.map((f: string) => ({
+          label: f.replace(".CUBE", ""),
+          value: f.replace(".CUBE", ""),
+        })),
+      ],
     );
   }
 

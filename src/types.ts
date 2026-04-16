@@ -3,6 +3,8 @@ export type { ZX$, ZXArgv, ZXChalk, ZXFs, ZXQuestion };
 import type { Logger } from "pino";
 import type { TerminalUI } from "./common/ui.ts";
 
+import type { Config } from "./common/config.ts";
+
 export interface GlobalContext {
   $: typeof ZX$;
   argv: typeof ZXArgv;
@@ -13,7 +15,21 @@ export interface GlobalContext {
   PROJECT_ROOT: string;
   ASSETS_DIR: string;
   INTERNAL_TEMP_DIR: string;
+  GLOBAL_CONFIG_DIR: string;
+  GLOBAL_CONFIG_FILE: string;
+  config: Config;
   ui: TerminalUI;
+  runId: string;
+  paths: RunPaths;
+}
+
+export interface RunPaths {
+  runDir: string;
+  faceAnalysis: string;
+  transcribe: string;
+  sync: string;
+  denoise: string;
+  jumpcut: string;
 }
 
 export interface RunArgs {
@@ -40,8 +56,6 @@ export interface ResolvedInputs {
   outputName: string;
 }
 
-import type { MultiBar } from "cli-progress";
-
 export interface CutResult {
   top: number;
   left: number;
@@ -52,7 +66,7 @@ export interface CutResult {
 export interface RenderParams extends ResolvedInputs {
   subtitleFile: string | null;
   cut: CutResult;
-  videoOutput?: string;
+  originalVideoPath?: string;
 }
 
 export interface WhisperWord {
@@ -80,7 +94,13 @@ export interface SubtitleStyle {
   fontSize?: number;
   primaryColor?: string;
   secondaryColor?: string;
+  highlightColor?: string;
   outlineColor?: string;
   shadowColor?: string;
+  outlineWidth?: number;
+  shadowDepth?: number;
+  alignment?: number;
   marginV?: number;
+  bold?: boolean;
+  italic?: boolean;
 }

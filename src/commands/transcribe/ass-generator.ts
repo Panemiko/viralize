@@ -1,138 +1,79 @@
-import { fs } from "zx";
-import type { WhisperData, WhisperSegment, WhisperWord, SubtitleStyle } from "../../types.ts";
-
-const MAX_WORDS_PER_LINE = 2; // Maximum 2 words per screen for high dynamism
+import { SubtitleStyle } from "../../types.ts";
+import { SHORTS_WIDTH, SHORTS_HEIGHT } from "../../common/constants.ts";
 
 /**
- * Converts Whisper JSON output to an ASS subtitle file with karaoke effects.
- * @param {object} whisperJson The JSON output from Whisper.
- * @param {string} outputPath The path to save the .ass file.
- * @param {object} style Options for styling.
+ * Generates an Advanced Substation Alpha (ASS) file with "pop in" effects.
  */
 export async function generateAssKaraoke(
-  whisperJson: WhisperData,
+  data: any,
   outputPath: string,
-  style: SubtitleStyle = {},
+  style: SubtitleStyle,
 ) {
-  const header = buildAssHeader(style);
-  const processedSegments = preProcessSegments(whisperJson.segments || []);
-  const events = processedSegments.map(buildDialogueLine).join("");
+  const { fs } = await import("zx");
 
-  await fs.writeFile(outputPath, `${header}${events}`);
-}
+  const fontName = style.fontName || "The Bold Font";
+  const fontSize = style.fontSize || 90;
+  const primaryColor = style.primaryColor || "&H00FFFFFF";
+  const secondaryColor = style.secondaryColor || "&H00FFFFFF";
+  const highlightColor = style.highlightColor || "&H00D400FF";
+  const outlineColor = style.outlineColor || "&H00000000";
+  const shadowColor = style.shadowColor || "&H00000000";
+  const marginV = style.marginV || 600;
+  const outlineWidth = style.outlineWidth ?? 2;
+  const shadowDepth = style.shadowDepth ?? 0;
+  const alignment = style.alignment ?? 2;
+  const bold = style.bold ? -1 : 0;
+  const italic = style.italic ? -1 : 0;
 
-/**
- * Builds the ASS file header.
- */
-function buildAssHeader(style: SubtitleStyle) {
-  const {
-    fontName = "Noto Sans",
-    fontSize = 24,
-    primaryColor = "&H00ABFF",
-    secondaryColor = "&HFFFFFF",
-    outlineColor = "&H000000",
-    shadowColor = "&H000000",
-    marginV = 150,
-  } = style;
-
-  return `[Script Info]
+  let assContent = `[Script Info]
 ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
+PlayResX: ${SHORTS_WIDTH}
+PlayResY: ${SHORTS_HEIGHT}
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontName},${fontSize},${primaryColor},${secondaryColor},${outlineColor},${shadowColor},1,0,0,0,100,100,2,0,1,5,2,2,10,10,${marginV},1
+Style: Default,${fontName},${fontSize},${primaryColor},${secondaryColor},${outlineColor},${shadowColor},${bold},${italic},0,0,100,100,0,0,1,${outlineWidth},${shadowDepth},${alignment},10,10,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
-}
 
-/**
- * Pre-processes segments by splitting long ones into smaller chunks.
- */
-function preProcessSegments(segments: WhisperSegment[]) {
-  const result = [];
+  if (data.segments) {
+    for (const segment of data.segments) {
+      if (!segment.words || segment.words.length === 0) {
+        const start = formatTime(segment.start);
+        const end = formatTime(segment.end);
+        const text = segment.text.trim().toUpperCase();
+        // Simple pop for segments without word data
+        assContent += `Dialogue: 0,${start},${end},Default,,0,0,0,,{\\fscx70\\fscy70\\t(0,50,\\fscx120\\fscy120)\\t(50,150,\\fscx100\\fscy100)}${text}\n`;
+        continue;
+      }
 
-  for (const segment of segments) {
-    if (segment.words && segment.words.length > MAX_WORDS_PER_LINE) {
-      result.push(...splitSegmentIntoChunks(segment.words));
-    } else {
-      result.push(segment);
+      const words = segment.words;
+      // Show 1-2 words at a time for high engagement "pop"
+      for (let i = 0; i < words.length; i += 1) {
+        const word = words[i];
+        const start = formatTime(word.start);
+        const end = formatTime(word.end);
+        const text = word.word.trim().toUpperCase();
+
+        // Animation: scale from 70% to 120% then to 100%
+        // We also apply the highlight color
+        const animation = `{\\1c${highlightColor}\\fscx70\\fscy70\\t(0,50,\\fscx120\\fscy120)\\t(50,150,\\fscx100\\fscy100)}`;
+        
+        assContent += `Dialogue: 0,${start},${end},Default,,0,0,0,,${animation}${text}\n`;
+      }
     }
   }
 
-  return result;
+  await fs.writeFile(outputPath, assContent);
 }
 
-/**
- * Splits a list of words into smaller chunks for dynamic display.
- */
-function splitSegmentIntoChunks(words: WhisperWord[]) {
-  const chunks = [];
-  for (let i = 0; i < words.length; i += MAX_WORDS_PER_LINE) {
-    const chunkWords = words.slice(i, i + MAX_WORDS_PER_LINE);
-    chunks.push({
-      start: chunkWords[0]!.start,
-      end: chunkWords[chunkWords.length - 1]!.end,
-      words: chunkWords,
-      text: chunkWords.map(function (w) { return w.word; }).join(" "),
-    });
-  }
-  return chunks;
-}
-
-/**
- * Builds a single Dialogue line for the ASS script.
- */
-function buildDialogueLine(segment: WhisperSegment) {
-  const start = formatTime(segment.start);
-  const end = formatTime(segment.end);
-  const karaokeText = buildKaraokeText(segment);
-
-  return `Dialogue: 0,${start},${end},Default,,0,0,0,,${karaokeText}\n`;
-}
-
-/**
- * Builds the karaoke effect text for a segment.
- */
-function buildKaraokeText(segment: WhisperSegment) {
-  // Dynamic pop animation: growth spurt followed by settle
-  let text = "{\\fscx90\\fscy90\\t(0,80,\\fscx110\\fscy110)\\t(80,160,\\fscx100\\fscy100)}";
-
-  if (!segment.words || segment.words.length === 0) {
-    return `${text}${segment.text.trim()}`;
-  }
-
-  let currentTime = segment.start;
-
-  for (let i = 0; i < segment.words.length; i++) {
-    const wordData = segment.words[i]!;
-    const word = wordData.word.trim();
-    const duration = Math.max(1, Math.round((wordData.end - wordData.start) * 100));
-    const gap = Math.max(0, Math.round((wordData.start - currentTime) * 100));
-
-    if (gap > 0) text += `{\\k${gap}} `;
-    text += `{\\k${duration}}${word}`;
-
-    if (i < segment.words.length - 1) text += " ";
-    currentTime = wordData.end;
-  }
-
-  return text.trim();
-}
-
-/**
- * Formats seconds to ASS time format: H:MM:SS.CC
- */
-function formatTime(seconds: number) {
-  if (seconds < 0) seconds = 0;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  const c = Math.floor((seconds % 1) * 100);
-
-  return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}.${c.toString().padStart(2, "0")}`;
+function formatTime(seconds: number): string {
+  const date = new Date(0);
+  date.setSeconds(seconds);
+  const ms = Math.floor((seconds % 1) * 100);
+  const time = date.toISOString().substr(11, 8);
+  return `${time}.${ms.toString().padStart(2, "0")}`;
 }

@@ -7,3 +7,4 @@ export * as setup from "./setup/index.ts";
 export * as faceAnalysis from "./face-analysis/index.ts";
 export * as transcribe from "./transcribe/index.ts";
 export * as render from "./render/index.ts";
+export * as generateConfig from "./generate-config/index.ts";

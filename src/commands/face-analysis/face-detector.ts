@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import * as tf from "@tensorflow/tfjs-node";
 import * as faceapi_pkg from "@vladmandic/face-api";
-import { PROJECT_ROOT, TEMP_FACE_ANALYSIS, ensureTempDir } from "../../common/paths.ts";
+import { PROJECT_ROOT, getRunPaths, ensureRunDirs } from "../../common/paths.ts";
 
 const faceapi = faceapi_pkg as any;
 const modelPathRoot = "src/models";
@@ -47,9 +47,19 @@ async function searchFaceOnFile(file: Buffer) {
 }
 
 async function main() {
-  ensureTempDir();
-  const framePath = path.resolve(TEMP_FACE_ANALYSIS, "frame.png");
-  const faceJsonPath = path.resolve(TEMP_FACE_ANALYSIS, "face.json");
+  const runDir = process.env.RUN_DIR;
+  if (!runDir) {
+    console.error("RUN_DIR environment variable is required.");
+    process.exit(1);
+  }
+
+  // Extract runId from runDir
+  const runId = path.basename(runDir);
+  const runPaths = getRunPaths(runId);
+  ensureRunDirs(runPaths);
+
+  const framePath = path.resolve(runPaths.faceAnalysis, "frame.png");
+  const faceJsonPath = path.resolve(runPaths.faceAnalysis, "face.json");
 
   const data = await fs.readFile(framePath);
   const results = await searchFaceOnFile(data);
